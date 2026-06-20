@@ -1,0 +1,10 @@
+name: PTBXL
+root: /data/padmalab_external/special_project/physionet.org/files/ptb-xl/1.0.3/
+metadata_file: ptbxl_database.csv
+records_root: records500
+sampling_rate: 500
+signal_format: wfdb
+record_id_column: ecg_id
+patient_id_column: patient_id
+label_column: scp_codes
+domain: ptbxl_germany
