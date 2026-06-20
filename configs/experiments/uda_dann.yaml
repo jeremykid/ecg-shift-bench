@@ -1,0 +1,20 @@
+experiment: uda_dann_ptbxl_to_sph
+method: dann
+source_datasets: [PTBXL]
+target_datasets: [SPH]
+canonical_labels: [AF, RBBB, LBBB, 1dAVB, SB, ST]
+model: {name: resnet1d, input_length: 5000, sampling_rate: 500}
+training:
+  batch_size: 64
+  epochs: 30
+  optimizer: adamw
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  seed: 42
+method_params:
+  domain_loss_weight: 0.1
+evaluation:
+  metrics: [macro_auroc, micro_auroc, macro_auprc, micro_auprc, domain_gap]
+protocol:
+  target_inputs_available_during_training: true
+  target_labels_available_during_training: false

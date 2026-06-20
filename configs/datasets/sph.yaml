@@ -1,0 +1,10 @@
+name: SPH
+root: data/raw/sph
+metadata_file: metadata.csv
+records_root: records
+sampling_rate: 500
+signal_format: wfdb
+record_id_column: record_id
+patient_id_column: patient_id
+label_column: labels
+domain: sph_china

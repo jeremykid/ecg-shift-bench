@@ -1,0 +1,10 @@
+name: CHAPMAN
+root: data/raw/chapman
+metadata_file: Diagnostics.xlsx
+records_root: ECGData
+sampling_rate: 500
+signal_format: csv
+record_id_column: FileName
+patient_id_column: PatientID
+label_column: Rhythm
+domain: chapman_ningbo_china
