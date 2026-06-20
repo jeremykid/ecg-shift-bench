@@ -1,0 +1,40 @@
+experiment: ptbxl-source-only-resnet1d-wang-500hz-e1-seed42
+dataset_snapshot_id: ptbxl-1.0.3-six-label-v1
+dataset_snapshot_manifest: configs/datasets/snapshots/ptbxl-1.0.3-six-label-v1.yaml
+method: source_only
+source_datasets: [PTBXL]
+target_datasets: []
+canonical_labels: [AF, RBBB, LBBB, 1dAVB, SB, ST]
+model:
+  name: resnet1d_wang
+  in_channels: 12
+  channels: 128
+  dropout: 0.5
+data:
+  sampling_rate: 500
+  input_length: 5000
+  unit: mV
+  normalization: per_lead_zscore
+  filtering: none
+  cropping: none
+  augmentation: none
+training:
+  epochs: 1
+  batch_size: 64
+  workers: 8
+  optimizer: adamw
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  loss: unweighted_bce_with_logits
+  scheduler: none
+  seed: 42
+  amp: fp16_cuda_only
+evaluation:
+  selection_metric: validation_macro_auprc
+  metrics: [macro_auroc, micro_auroc, macro_auprc, micro_auprc, per_label_auroc, per_label_auprc, per_label_support]
+  domain_gap: not_applicable_single_ptbxl_domain
+protocol:
+  train_folds: [1, 2, 3, 4, 5, 6, 7, 8]
+  validation_folds: [9]
+  test_folds: [10]
+  target_labels_available_during_training: false

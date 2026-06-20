@@ -1,0 +1,72 @@
+snapshot_id: ptbxl-1.0.3-six-label-v1
+created_before_model_training: true
+source:
+  dataset: PTB-XL
+  release: 1.0.3
+  official_url: https://physionet.org/content/ptb-xl/1.0.3/
+  license: PhysioNet Credentialed Health Data License 1.5.0
+  acquisition_date: not_recorded
+  identity_files:
+    ptbxl_database.csv: 7600de9c1b27d181d850b3c6038a35d7c3ddb6bb33b702e3a20252a6859d216b
+    scp_statements.csv: ad05b0b1fcae83bb1230755ad9cfc7c96f303feddc08a4a9ad5bdc9ca63bac8f
+    RECORDS: 56d37274b0b02339e9c30bff8c9a9f2a6fb3cb2bb7bcd5d7c55355451d53896a
+    SHA256SUMS.txt: b7224b92b341511ec3ceb13dc6652079b2c36a06504bcb49506f157f51dc695d
+inclusion:
+  rule: Include every metadata record in PTB-XL 1.0.3, including all-six-label-negative records.
+  exclusions: none
+  missingness: No target-positive requirement and no demographic completeness filter.
+counts:
+  records_before_filter: 21799
+  records_total: 21799
+  exclusions: 0
+  splits:
+    train:
+      records: 17418
+      patients: 15023
+      all_six_labels_negative: 13147
+      positive_support: {AF: 1211, RBBB: 1326, LBBB: 490, 1dAVB: 634, SB: 509, ST: 661}
+    validation:
+      records: 2183
+      patients: 1942
+      all_six_labels_negative: 1657
+      positive_support: {AF: 151, RBBB: 166, LBBB: 61, 1dAVB: 80, SB: 64, ST: 83}
+    test:
+      records: 2198
+      patients: 1904
+      all_six_labels_negative: 1661
+      positive_support: {AF: 152, RBBB: 166, LBBB: 62, 1dAVB: 79, SB: 64, ST: 82}
+schema:
+  record_key: ecg_id
+  entity_key: patient_id
+  signal_path: filename_hr
+  signal: {lead_order: [I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6], unit: mV, sampling_rate_hz: 500, samples: 5000}
+target_definition:
+  order: [AF, RBBB, LBBB, 1dAVB, SB, ST]
+  source_column: scp_codes
+  dictionary_values: ignored; statement presence defines a positive native label
+  mapping:
+    AF: [AFIB]
+    RBBB: [CRBBB, IRBBB]
+    LBBB: [CLBBB, ILBBB]
+    1dAVB: [1AVB]
+    SB: [SBRAD]
+    ST: [STACH]
+split_policy:
+  source_column: strat_fold
+  train_folds: [1, 2, 3, 4, 5, 6, 7, 8]
+  validation_folds: [9]
+  test_folds: [10]
+  seed: not_applicable_official_folds
+  manifest_serialization: UTF-8 CSV with header ecg_id,patient_id,split; integer IDs; sorted by ecg_id
+  manifest_sha256: 0ab5e4ce887fd4813a1fb95a278509cee0fc8e4b50a673371c4f08da215f7c19
+leakage_review:
+  patient_overlap: {train_validation: 0, train_test: 0, validation_test: 0}
+  temporal_leakage: not_applicable_no_temporal_split
+  target_leakage: labels used only as supervised targets and evaluation outcomes
+  holdout_leakage: validation and test folds are excluded from optimization
+protected_data:
+  committed_content: Aggregate counts and public release checksums only; no local path or record rows.
+  local_artifacts: Split manifests remain under ignored experiment output directories.
+risks:
+  - Runtime validates the official checksum index identity but does not rehash every waveform.
+  - Canonical labels are a benchmark mapping and not a substitute for clinical adjudication.
