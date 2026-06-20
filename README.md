@@ -88,6 +88,16 @@ The config-only commands validate and report next inputs without accessing remot
 you have a combined record index, pass it to `create_splits.py --metadata ...`. A synthetic
 end-to-end optimizer check is available with `train.py --smoke-test`.
 
+Dataset roots remain portable in version control. Use `--root` for local storage outside the
+repository and optionally load one waveform as an integration check:
+
+```bash
+python scripts/prepare_dataset.py --dataset ptbxl --config configs/datasets/ptbxl.yaml \
+  --root /path/to/ptb-xl/1.0.3 --check-record 1
+python scripts/prepare_dataset.py --dataset code15 --config configs/datasets/code15.yaml \
+  --root /path/to/code_15 --check-record 123456
+```
+
 ## Repository structure
 
 ```text

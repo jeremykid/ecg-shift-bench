@@ -8,7 +8,11 @@ official sources and follow their current license and access requirements.
 - Configured metadata: `data/raw/ptbxl/ptbxl_database.csv`
 - Configured signals: `data/raw/ptbxl/records500/`
 - Expected native labels: SCP statement dictionary in `scp_codes`
-- TODO: validate release, WFDB units, 12-lead ordering, patient IDs, and 100/500 Hz selection.
+- Supported layout: official PhysioNet PTB-XL 1.0.3-style metadata with `filename_hr` paths.
+- The loader reads physical WFDB samples, verifies 500 Hz, and returns I, II, III, aVR, aVL,
+  aVF, V1--V6 in `(12, 5000)` order. Use `filename_lr` with a 100 Hz config if required.
+- SCP dictionary values are not binary indicators. Statement presence defines the raw label;
+  rhythm/form statements such as AFIB, SBRAD, and STACH commonly carry value `0.0`.
 
 ## Chapman-Shaoxing / Ningbo
 
@@ -27,11 +31,15 @@ official sources and follow their current license and access requirements.
 
 ## CODE-15%
 
-- Configured annotations: `data/raw/code15/annotations.csv`
-- Configured signals: `data/raw/code15/tracings/`
-- Expected waveform container: HDF5; expected rate: 400 Hz
-- TODO: validate HDF5 keys/chunks, exam-to-patient linkage, label capitalization, units, and
-  whether public annotations expose all six labels with comparable definitions.
+- Configured annotations: `data/raw/code15/exams.csv`
+- Configured signals: `data/raw/code15/exams_part0.hdf5` through `exams_part17.hdf5`
+- Waveforms are float32 `(4096, 12)` arrays at 400 Hz, ordered I, II, III, aVR, aVL,
+  aVF, V1--V6. The loader returns lead-first `(12, 4096)` arrays without removing the
+  release's leading/trailing zero padding.
+- `exams.csv` contains `patient_id`, `trace_file`, and the six boolean target columns. Patient
+  IDs, not exam IDs, must be used for splitting because many patients have repeated exams.
+- Each HDF5 part has an extra all-zero sentinel row with `exam_id == 0`; the loader excludes it
+  from its ID index. ZIP parts must be manually extracted before their records can be read.
 
 ## Future placeholders
 

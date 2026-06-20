@@ -2,6 +2,7 @@
 
 import pytest
 
+from ecg_shift_bench.datasets._tabular import _parse_labels
 from ecg_shift_bench.labels.canonical import CANONICAL_LABELS, LABEL_DESCRIPTIONS
 from ecg_shift_bench.labels.harmonize import harmonize_labels
 from ecg_shift_bench.labels.mappings import LABEL_MAP
@@ -37,3 +38,11 @@ def test_every_mapping_has_all_canonical_labels() -> None:
 def test_unknown_dataset_is_rejected() -> None:
     with pytest.raises(KeyError, match="Unknown dataset"):
         harmonize_labels(["AF"], "unknown")
+
+
+def test_ptbxl_dictionary_keeps_zero_score_rhythm_statements() -> None:
+    assert _parse_labels("{'AFIB': 0.0, 'SBRAD': 0.0, 'NORM': 100.0}") == [
+        "AFIB",
+        "SBRAD",
+        "NORM",
+    ]
