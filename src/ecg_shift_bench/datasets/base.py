@@ -31,6 +31,7 @@ class BaseECGDataset(ABC):
     def __init__(self, root: str | Path, config: dict[str, Any] | None = None) -> None:
         self.root = Path(root)
         self.config = config or {}
+        self.domain = str(self.config.get("domain", self.domain))
         self._metadata: pd.DataFrame | None = None
 
     @abstractmethod

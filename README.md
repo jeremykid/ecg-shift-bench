@@ -23,7 +23,7 @@ named diagnoses as automatically equivalent.
 
 | Dataset | Domain interpretation | Initial adapter status |
 |---|---|---|
-| PTB-XL | German clinical source | Metadata skeleton |
+| PTB-XL | German clinical source | Validated metadata and WFDB loader |
 | Chapman-Shaoxing / Ningbo | Chinese hospital/acquisition source | Metadata skeleton |
 | SPH | Chinese hospital/acquisition source | Metadata skeleton |
 | CODE-15% | Brazilian telehealth source | Metadata skeleton |
@@ -87,6 +87,30 @@ python scripts/evaluate.py --config configs/experiments/source_only.yaml
 The config-only commands validate and report next inputs without accessing remote data. Once
 you have a combined record index, pass it to `create_splits.py --metadata ...`. A synthetic
 end-to-end optimizer check is available with `train.py --smoke-test`.
+
+The fixed PTB-XL 1.0.3 source-only baseline validates its immutable snapshot before accessing
+waveforms, performs a real-batch forward/backward preflight, and then trains for one epoch:
+
+```bash
+python scripts/train.py \
+  --config configs/experiments/ptbxl_source_only_resnet1d_wang_e1.yaml \
+  --dataset-config configs/datasets/ptbxl.yaml \
+  --root /path/to/ptb-xl/1.0.3 \
+  --device cuda:0 \
+  --output-dir outputs/ptbxl-source-only-resnet1d-wang-500hz-e1-seed42
+```
+
+Add `--preflight-only` to stop after the snapshot and real-batch checks.
+
+Dataset roots remain portable in version control. Use `--root` for local storage outside the
+repository and optionally load one waveform as an integration check:
+
+```bash
+python scripts/prepare_dataset.py --dataset ptbxl --config configs/datasets/ptbxl.yaml \
+  --root /path/to/ptb-xl/1.0.3 --check-record 1
+python scripts/prepare_dataset.py --dataset code15 --config configs/datasets/code15.yaml \
+  --root /path/to/code_15 --check-record 123456
+```
 
 ## Repository structure
 

@@ -19,6 +19,7 @@ dependencies = [
   "tqdm>=4.64",
   "torch>=2.0",
   "wfdb>=4.1",
+  "h5py>=3.8",
 ]
 
 [project.optional-dependencies]

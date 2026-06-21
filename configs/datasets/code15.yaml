@@ -1,10 +1,13 @@
 name: CODE15
-root: /data/padmalab_external/special_project/CODE_15/
-metadata_file: annotations.csv
-records_root: tracings
+root: data/raw/code15
+metadata_file: exams.csv
+records_root: .
 sampling_rate: 400
 signal_format: hdf5
+signal_dataset: tracings
+signal_layout: samples_leads
+trace_file_column: trace_file
 record_id_column: exam_id
 patient_id_column: patient_id
-label_column: labels
+label_columns: [AF, RBBB, LBBB, 1dAVb, SB, ST]
 domain: code15_brazil
