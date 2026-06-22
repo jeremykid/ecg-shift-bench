@@ -1,5 +1,5 @@
 name: CHAPMAN
-root: data/raw/chapman
+root: /data/padmalab_external/special_project/chapman_shaoxing
 metadata_file: Diagnostics.xlsx
 records_root: ECGData
 sampling_rate: 500

@@ -1,5 +1,5 @@
 name: SPH
-root: data/raw/sph
+root: /data/padmalab_external/special_project/sph
 metadata_file: metadata.csv
 records_root: records
 sampling_rate: 500
