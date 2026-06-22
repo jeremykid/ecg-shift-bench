@@ -1,5 +1,5 @@
 name: PTBXL
-root: data/raw/ptbxl
+root: /data/padmalab_external/special_project/physionet.org/files/ptb-xl/1.0.3/
 metadata_file: ptbxl_database.csv
 records_root: records500
 sampling_rate: 500
