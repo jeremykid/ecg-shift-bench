@@ -1,5 +1,5 @@
 name: CODE15
-root: data/raw/code15
+root: /data/padmalab_external/special_project/code_15
 metadata_file: exams.csv
 records_root: .
 sampling_rate: 400
