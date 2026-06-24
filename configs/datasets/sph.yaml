@@ -3,8 +3,12 @@ root: /data/padmalab_external/special_project/sph
 metadata_file: metadata.csv
 records_root: records
 sampling_rate: 500
+target_sampling_rate: 500
+target_length: 5000
+normalization: per_lead_zscore
+lead_order: [I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6]
 signal_format: wfdb
-record_id_column: record_id
-patient_id_column: patient_id
-label_column: labels
+record_id_column: ECG_ID
+patient_id_column: Patient_ID
+label_column: AHA_Code
 domain: sph_china
