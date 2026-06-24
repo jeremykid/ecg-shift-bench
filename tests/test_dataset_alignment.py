@@ -49,6 +49,35 @@ def test_chapman_loader_reads_csv_waveform_as_lead_first(tmp_path: Path) -> None
     assert dataset.get_labels("MUSE_TEST")["AF"] == 1
 
 
+def test_chapman_labels_combine_rhythm_and_beat_columns(tmp_path: Path) -> None:
+    pd.DataFrame(
+        {
+            "FileName": ["MUSE_TEST"],
+            "Rhythm": ["AFIB"],
+            "Beat": ["RBBB LBBB 1AVB"],
+        }
+    ).to_csv(tmp_path / "Diagnostics.csv", index=False)
+
+    dataset = ChapmanDataset(
+        tmp_path,
+        {
+            "metadata_file": "Diagnostics.csv",
+            "record_id_column": "FileName",
+            "label_column": "Rhythm",
+            "beat_label_column": "Beat",
+        },
+    )
+
+    assert dataset.get_labels("MUSE_TEST") == {
+        "AF": 1,
+        "RBBB": 1,
+        "LBBB": 1,
+        "1dAVB": 1,
+        "SB": 0,
+        "ST": 0,
+    }
+
+
 def test_sph_loader_reads_hdf5_waveform_and_metadata_columns(tmp_path: Path) -> None:
     records = tmp_path / "records" / "records"
     records.mkdir(parents=True)

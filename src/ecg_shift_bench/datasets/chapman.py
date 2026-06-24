@@ -9,14 +9,16 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ecg_shift_bench.datasets._tabular import TabularSkeletonDataset
+from ecg_shift_bench.datasets._tabular import TabularSkeletonDataset, _parse_labels
 from ecg_shift_bench.datasets.alignment import CANONICAL_LEAD_ORDER, lead_indices_for_order
+from ecg_shift_bench.labels.harmonize import harmonize_labels
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "metadata_file": "Diagnostics.xlsx",
     "records_root": "ECGData",
     "record_id_column": "FileName",
     "label_column": "Rhythm",
+    "beat_label_column": "Beat",
     "sampling_rate": 500,
 }
 
@@ -73,6 +75,15 @@ class ChapmanDataset(TabularSkeletonDataset):
             raise ValueError(f"Chapman record {record_id!r} has unexpected shape {signal.shape}")
         return signal.copy()
 
+    def get_labels(self, record_id: str) -> dict[str, int]:
+        """Return canonical labels from Chapman rhythm and beat annotations."""
+        row = self._metadata_row(record_id)
+        raw_labels = _parse_labels(row[self.config.get("label_column", "Rhythm")])
+        beat_col = self.config.get("beat_label_column", "Beat")
+        if beat_col in row.index:
+            raw_labels.extend(_parse_beat_labels(row[beat_col]))
+        return harmonize_labels(raw_labels, self.name)
+
     def _resolve_signal_path(self, record_value: str) -> Path:
         filename = record_value if record_value.endswith(".csv") else f"{record_value}.csv"
         records_root = self.root / self.config.get("records_root", "ECGData")
@@ -84,3 +95,11 @@ class ChapmanDataset(TabularSkeletonDataset):
             if path.exists():
                 return path
         raise FileNotFoundError(f"Missing Chapman waveform for {record_value!r}: {candidates}")
+
+
+def _parse_beat_labels(value: Any) -> list[str]:
+    """Parse Chapman beat annotations, which are commonly whitespace-separated."""
+    labels: list[str] = []
+    for label in _parse_labels(value):
+        labels.extend(str(label).split())
+    return [label for label in labels if label and label.upper() != "NONE"]
