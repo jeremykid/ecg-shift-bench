@@ -10,4 +10,5 @@ lead_order: [I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6]
 signal_format: csv
 record_id_column: FileName
 label_column: Rhythm
+beat_label_column: Beat
 domain: chapman_ningbo_china

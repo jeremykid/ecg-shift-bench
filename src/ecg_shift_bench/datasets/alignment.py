@@ -27,7 +27,7 @@ CANONICAL_LEAD_ORDER = [
 
 @dataclass(frozen=True)
 class AlignedECGSample:
-    """One ECG record after applying the issue #7 input contract."""
+    """Aligned ECG record with waveform, labels, and provenance fields."""
 
     signal: np.ndarray
     labels: dict[str, int]

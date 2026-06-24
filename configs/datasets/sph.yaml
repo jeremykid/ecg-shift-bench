@@ -7,7 +7,8 @@ target_sampling_rate: 500
 target_length: 5000
 normalization: per_lead_zscore
 lead_order: [I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6]
-signal_format: wfdb
+signal_format: hdf5
+signal_dataset: ecg
 record_id_column: ECG_ID
 patient_id_column: Patient_ID
 label_column: AHA_Code

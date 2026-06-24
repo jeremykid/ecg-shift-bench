@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write issue #7 alignment audit and split-standardization artifacts."""
+"""Write dataset audit and split artifacts."""
 
 import argparse
 from pathlib import Path

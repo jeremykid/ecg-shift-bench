@@ -1,9 +1,10 @@
-"""Tests for issue #7 dataset audit and split standardization."""
+"""Tests for dataset audit and split manifests."""
 
 import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from ecg_shift_bench.datasets.audit import (
@@ -136,6 +137,59 @@ def test_write_alignment_audit_outputs_creates_expected_files(tmp_path: Path) ->
     assert result.reproducibility["source_sampling_rate"] == 400
     assert result.reproducibility["target_sampling_rate"] == 500
     assert result.reproducibility["resampling_method"] == "polyphase_resample_signal"
+
+
+def test_waveform_audit_validates_aligned_contract(tmp_path: Path) -> None:
+    records = tmp_path / "ECGData" / "ECGData"
+    records.mkdir(parents=True)
+    leads = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+    stored = pd.DataFrame(
+        np.tile(np.linspace(-1.0, 1.0, 4000, dtype=np.float32), (12, 1)).T,
+        columns=leads,
+    )
+    stored.to_csv(records / "MUSE_TEST.csv", index=False)
+    pd.DataFrame({"FileName": ["MUSE_TEST"], "Rhythm": ["AFIB"], "Beat": ["RBBB"]}).to_csv(
+        tmp_path / "Diagnostics.csv", index=False
+    )
+    dataset = ChapmanDataset(
+        tmp_path,
+        {
+            "metadata_file": "Diagnostics.csv",
+            "records_root": "ECGData",
+            "record_id_column": "FileName",
+            "label_column": "Rhythm",
+            "beat_label_column": "Beat",
+            "sampling_rate": 500,
+            "target_sampling_rate": 500,
+            "target_length": 5000,
+        },
+    )
+
+    result = audit_dataset(dataset, waveform_check_limit=1)
+
+    assert result.audit["records_usable"] == 1
+    assert result.audit["waveform_check"] == {
+        "checked_records": 1,
+        "mode": "sampled",
+        "target_sampling_rate": 500,
+        "target_length": 5000,
+        "lead_order": [
+            "I",
+            "II",
+            "III",
+            "aVR",
+            "aVL",
+            "aVF",
+            "V1",
+            "V2",
+            "V3",
+            "V4",
+            "V5",
+            "V6",
+        ],
+        "normalization": "per_lead_zscore",
+    }
+    assert result.exclusions.empty
 
 
 def test_audit_alignment_cli_writes_expected_files(tmp_path: Path) -> None:

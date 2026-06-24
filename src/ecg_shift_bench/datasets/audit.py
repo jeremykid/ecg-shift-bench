@@ -1,4 +1,4 @@
-"""Dataset audit and split-standardization helpers for issue #7."""
+"""Dataset audit and split manifest helpers."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ DEFAULT_TEST_SIZE = 0.2
 
 @dataclass(frozen=True)
 class DatasetAuditResult:
-    """Complete machine-readable audit payloads for one dataset."""
+    """Audit outputs for one dataset."""
 
     dataset: str
     audit: dict[str, Any]
@@ -61,10 +61,7 @@ def audit_dataset(
         "missing_labels": label_summary["missing_labels"],
         "positive_counts": label_summary["positive_counts"],
         "positive_prevalence": label_summary["positive_prevalence"],
-        "waveform_check": {
-            "checked_records": min(max(waveform_check_limit, 0), records_total),
-            "mode": "sampled" if waveform_check_limit > 0 else "metadata_only",
-        },
+        "waveform_check": _waveform_check_summary(dataset, waveform_check_limit, records_total),
         "split_policy": split_policy,
     }
     return DatasetAuditResult(
@@ -121,7 +118,7 @@ def write_alignment_audit_outputs(
     result: DatasetAuditResult,
     output_dir: str | Path,
 ) -> dict[str, str]:
-    """Write issue #7 audit artifacts under ``outputs/alignment/<dataset>/``."""
+    """Write audit artifacts under ``outputs/alignment/<dataset>/``."""
     dataset_dir = Path(output_dir) / result.dataset
     dataset_dir.mkdir(parents=True, exist_ok=True)
     paths = {
@@ -152,16 +149,43 @@ def _waveform_exclusions(
         return pd.DataFrame(columns=["record_id", "reason"])
     for record_id in metadata[record_col].astype(str).head(limit):
         try:
-            signal = dataset.load_signal(record_id)
-            if signal.ndim != 2:
-                raise ValueError(f"expected 2D signal, got {signal.shape}")
-            if signal.shape[0] != 12:
-                raise ValueError(f"expected 12 leads, got {signal.shape}")
-            if not np.isfinite(signal).all():
-                raise ValueError("signal contains non-finite values")
+            _validate_aligned_signal(dataset.load_aligned_signal(record_id), dataset)
         except Exception as error:  # noqa: BLE001 - audit must record all exclusion reasons.
             rows.append({"record_id": record_id, "reason": str(error)})
     return pd.DataFrame(rows, columns=["record_id", "reason"])
+
+
+def _waveform_check_summary(
+    dataset: BaseECGDataset,
+    waveform_check_limit: int,
+    records_total: int,
+) -> dict[str, Any]:
+    return {
+        "checked_records": min(max(waveform_check_limit, 0), records_total),
+        "mode": "sampled" if waveform_check_limit > 0 else "metadata_only",
+        "target_sampling_rate": int(dataset.config.get("target_sampling_rate", 500)),
+        "target_length": int(dataset.config.get("target_length", 5000)),
+        "lead_order": dataset.config.get("lead_order", CANONICAL_LEAD_ORDER),
+        "normalization": dataset.config.get("normalization", "per_lead_zscore"),
+    }
+
+
+def _validate_aligned_signal(signal: np.ndarray, dataset: BaseECGDataset) -> None:
+    target_length = int(dataset.config.get("target_length", 5000))
+    expected_shape = (12, target_length)
+    if signal.shape != expected_shape:
+        raise ValueError(f"expected aligned shape {expected_shape}, got {signal.shape}")
+    if signal.dtype != np.float32:
+        raise ValueError(f"expected float32 aligned signal, got {signal.dtype}")
+    if not np.isfinite(signal).all():
+        raise ValueError("aligned signal contains non-finite values")
+    if dataset.config.get("normalization", "per_lead_zscore") == "per_lead_zscore":
+        means = signal.mean(axis=-1)
+        stds = signal.std(axis=-1)
+        if not np.allclose(means, 0.0, atol=1e-4):
+            raise ValueError("aligned signal is not centered per lead")
+        if not np.all((stds < 1e-6) | np.isclose(stds, 1.0, atol=1e-3)):
+            raise ValueError("aligned signal is not z-scored per lead")
 
 
 def _label_summary(
