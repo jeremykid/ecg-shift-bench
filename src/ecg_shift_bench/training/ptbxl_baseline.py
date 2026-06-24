@@ -29,6 +29,7 @@ from ecg_shift_bench.datasets.ptbxl_baseline import (
 from ecg_shift_bench.evaluation.metrics import multilabel_metrics
 from ecg_shift_bench.labels.canonical import CANONICAL_LABELS
 from ecg_shift_bench.models.resnet1d_wang import resnet1d_wang
+from ecg_shift_bench.utils.device import resolve_cuda_device
 from ecg_shift_bench.utils.seed import seed_everything
 
 
@@ -227,12 +228,7 @@ def _save_split_manifest(snapshot: PreparedPTBXLSnapshot, path: Path) -> None:
 
 
 def _resolve_device(requested: str) -> torch.device:
-    device = torch.device(requested)
-    if device.type == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError(f"CUDA device {requested!r} requested, but CUDA is unavailable")
-    if device.type not in {"cpu", "cuda"}:
-        raise ValueError("This baseline supports only CPU and CUDA devices")
-    return device
+    return resolve_cuda_device(requested)
 
 
 def run_ptbxl_baseline(

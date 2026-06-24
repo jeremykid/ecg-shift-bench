@@ -15,6 +15,7 @@ from ecg_shift_bench.training.optim import create_optimizer
 from ecg_shift_bench.training.ptbxl_baseline import run_ptbxl_baseline
 from ecg_shift_bench.training.trainer import train_one_epoch
 from ecg_shift_bench.utils.config import load_yaml, require_keys
+from ecg_shift_bench.utils.device import resolve_cuda_device
 from ecg_shift_bench.utils.seed import seed_everything
 
 
@@ -23,7 +24,11 @@ def main() -> None:
     parser.add_argument("--config", required=True)
     parser.add_argument("--dataset-config", help="Dataset YAML for a real-data run")
     parser.add_argument("--root", help="Local dataset release root (never copied into config)")
-    parser.add_argument("--device", default="cpu", help="Torch device, for example cuda:0")
+    parser.add_argument(
+        "--device",
+        default="auto",
+        help="CUDA device for training, for example cuda:0, or auto to pick the freest GPU",
+    )
     parser.add_argument("--output-dir", help="Artifact directory for a real-data run")
     parser.add_argument(
         "--snapshot-manifest",
@@ -44,7 +49,8 @@ def main() -> None:
     seed_everything(int(training["seed"]))
     print(f"Validated experiment: {config.get('experiment', 'unnamed')}")
     if args.smoke_test:
-        run_smoke_test(config)
+        device = resolve_cuda_device(args.device)
+        run_smoke_test(config, device)
         return
     if not args.root:
         print(
@@ -83,23 +89,23 @@ def main() -> None:
     print(f"Run status: {status['status']}")
 
 
-def run_smoke_test(config: dict) -> None:
+def run_smoke_test(config: dict, device: torch.device) -> None:
     """Preserve the original data-free source-only optimizer check."""
     if config["method"] != "source_only":
         raise NotImplementedError("Only source_only has a runnable baseline in this initialization")
 
     training = config["training"]
-    inputs = torch.randn(4, 12, 256)
-    targets = torch.randint(0, 2, (4, 6)).float()
+    inputs = torch.randn(4, 12, 256, device=device)
+    targets = torch.randint(0, 2, (4, 6), device=device).float()
     batches = DataLoader(TensorDataset(inputs, targets), batch_size=2)
-    model = ResNet1D()
+    model = ResNet1D().to(device)
     optimizer = create_optimizer(
         model.parameters(),
         training["optimizer"],
         float(training["learning_rate"]),
         float(training.get("weight_decay", 0.0)),
     )
-    loss = train_one_epoch(model, batches, optimizer, nn.BCEWithLogitsLoss(), "cpu")
+    loss = train_one_epoch(model, batches, optimizer, nn.BCEWithLogitsLoss(), device)
     print(f"Synthetic smoke-test loss: {loss:.6f}")
 
 
