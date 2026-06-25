@@ -14,3 +14,14 @@ experiments:
     artifact_root: outputs/ptbxl-source-only-resnet1d-wang-500hz-e1-seed42
     model_artifact: outputs/ptbxl-source-only-resnet1d-wang-500hz-e1-seed42/best_checkpoint.pt
     runtime_status: outputs/ptbxl-source-only-resnet1d-wang-500hz-e1-seed42/run_status.json
+  dataset-discriminator-resnet1d-wang-v1:
+    status: planned
+    config: configs/experiments/dataset_discriminator.yaml
+    workflow_dag:
+      - load_aligned_samples_on_demand
+      - build_cohort_manifest
+      - train_dataset_discriminator
+      - evaluate_test_split
+    artifact_root: outputs/dataset-discriminator
+    model_artifact: outputs/dataset-discriminator/best_checkpoint.pt
+    runtime_status: outputs/dataset-discriminator/run_status.json

@@ -1,0 +1,20 @@
+experiment: dataset_discriminator_resnet1d_wang_v1
+method: dataset_discriminator
+model:
+  name: resnet1d_wang
+  in_channels: 12
+  channels: 128
+  dropout: 0.5
+training:
+  batch_size: 64
+  epochs: 5
+  optimizer: adamw
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  seed: 42
+  workers: 8
+dataset_configs:
+  PTBXL: configs/datasets/ptbxl.yaml
+  CODE15: configs/datasets/code15.yaml
+  CHAPMAN: configs/datasets/chapman.yaml
+  SPH: configs/datasets/sph.yaml
