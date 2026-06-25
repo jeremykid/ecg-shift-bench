@@ -444,6 +444,13 @@ def run_dataset_discriminator(
             write_json(status_path, status)
             return status
 
+        epochs = int(experiment_config["training"]["epochs"])
+        print(
+            "Training start: "
+            f"experiment={experiment_config['experiment']} "
+            f"mode={mode} subset={subset} device={device} epochs={epochs}"
+        )
+
         history: list[dict[str, Any]] = []
         best_metric = float("-inf")
         best_state: dict[str, Any] | None = None
