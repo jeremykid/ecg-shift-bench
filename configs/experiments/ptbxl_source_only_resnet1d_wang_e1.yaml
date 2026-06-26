@@ -14,7 +14,6 @@ data:
   sampling_rate: 500
   input_length: 5000
   unit: mV
-  normalization: per_lead_zscore
   filtering: none
   cropping: none
   augmentation: none

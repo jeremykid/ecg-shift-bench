@@ -45,7 +45,7 @@ def test_resnet1d_wang_legacy_parameter_parity_and_six_label_shape() -> None:
     assert logits.shape == (1, 6)
 
 
-def test_dataset_normalization_batch_model_and_loss(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dataset_batch_model_and_loss_uses_raw_waveforms(monkeypatch: pytest.MonkeyPatch) -> None:
     base = np.arange(12 * 64, dtype=np.float32).reshape(12, 64)
     monkeypatch.setattr(
         "ecg_shift_bench.datasets.ptbxl.PTBXLDataset.load_signal",
@@ -58,8 +58,8 @@ def test_dataset_normalization_batch_model_and_loss(monkeypatch: pytest.MonkeyPa
         input_length=64,
     )
     inputs, targets = next(iter(DataLoader(dataset, batch_size=2)))
-    torch.testing.assert_close(inputs.mean(dim=-1), torch.zeros(2, 12), atol=1e-6, rtol=0)
-    torch.testing.assert_close(inputs.std(dim=-1, correction=0), torch.ones(2, 12))
+    torch.testing.assert_close(inputs[0], torch.from_numpy(base + 1))
+    torch.testing.assert_close(inputs[1], torch.from_numpy(base + 2))
     model = resnet1d_wang(num_labels=6)
     loss = nn.BCEWithLogitsLoss()(model(inputs), targets)
     assert torch.isfinite(loss)

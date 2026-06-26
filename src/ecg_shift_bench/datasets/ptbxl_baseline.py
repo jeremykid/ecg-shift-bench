@@ -16,7 +16,6 @@ from ecg_shift_bench.datasets._tabular import _parse_labels
 from ecg_shift_bench.datasets.ptbxl import PTBXLDataset
 from ecg_shift_bench.labels.canonical import CANONICAL_LABELS
 from ecg_shift_bench.labels.harmonize import harmonize_labels
-from ecg_shift_bench.preprocessing.signal import per_lead_zscore
 
 SPLIT_FOLDS = {
     "train": tuple(range(1, 9)),
@@ -195,7 +194,7 @@ def prepare_ptbxl_snapshot(
 
 
 class PTBXLClassificationDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
-    """Load strict 500 Hz, 10-second waveforms and apply per-lead z-score."""
+    """Load strict 500 Hz, 10-second waveforms for the legacy PTB-XL baseline."""
 
     def __init__(
         self,
@@ -226,5 +225,4 @@ class PTBXLClassificationDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             )
         if not np.isfinite(signal).all():
             raise ValueError(f"PTB-XL record {self.record_ids[index]!r} contains non-finite values")
-        normalized = per_lead_zscore(signal)
-        return torch.from_numpy(normalized), torch.from_numpy(self.targets[index].copy())
+        return torch.from_numpy(signal.copy()), torch.from_numpy(self.targets[index].copy())

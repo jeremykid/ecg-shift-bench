@@ -11,7 +11,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ecg_shift_bench.datasets.alignment import AlignedECGSample, align_ecg_signal
+from ecg_shift_bench.datasets.alignment import (
+    AlignedECGSample,
+    align_ecg_signal,
+    canonical_unit_name,
+)
 
 
 @dataclass(frozen=True)
@@ -56,16 +60,24 @@ class BaseECGDataset(ABC):
             source_rate=int(self.config.get("sampling_rate", 500)),
             target_rate=int(self.config.get("target_sampling_rate", 500)),
             target_length=int(self.config.get("target_length", 5000)),
+            source_unit=str(self.config.get("source_unit", "mV")),
+            target_unit=str(self.config.get("target_unit", "mV")),
         )
 
     def load_aligned_sample(self, record_id: str) -> AlignedECGSample:
         """Load one aligned ECG with labels and provenance for downstream tasks."""
         raw_signal = self.load_signal(record_id)
+        source_unit = str(self.config.get("source_unit", "mV"))
+        target_unit = str(self.config.get("target_unit", "mV"))
+        source_unit_name = canonical_unit_name(source_unit)
+        target_unit_name = canonical_unit_name(target_unit)
         aligned_signal = align_ecg_signal(
             raw_signal,
             source_rate=int(self.config.get("sampling_rate", 500)),
             target_rate=int(self.config.get("target_sampling_rate", 500)),
             target_length=int(self.config.get("target_length", 5000)),
+            source_unit=source_unit,
+            target_unit=target_unit,
         )
         return AlignedECGSample(
             signal=aligned_signal,
@@ -78,8 +90,10 @@ class BaseECGDataset(ABC):
             source_length=int(raw_signal.shape[-1]),
             meta={
                 "target_length": int(self.config.get("target_length", 5000)),
-                "normalization": self.config.get("normalization", "per_lead_zscore"),
                 "lead_order": self.config.get("lead_order"),
+                "source_unit": source_unit_name,
+                "target_unit": target_unit_name,
+                "unit_converted": source_unit_name != target_unit_name,
             },
         )
 

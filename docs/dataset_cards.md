@@ -7,6 +7,7 @@ official sources and follow their current license and access requirements.
 
 - Configured metadata: `data/raw/ptbxl/ptbxl_database.csv`
 - Configured signals: `data/raw/ptbxl/records500/`
+- Native signal unit: `mV`
 - Expected native labels: SCP statement dictionary in `scp_codes`
 - Supported layout: official PhysioNet PTB-XL 1.0.3-style metadata with `filename_hr` paths.
 - The loader reads physical WFDB samples, verifies 500 Hz, and returns I, II, III, aVR, aVL,
@@ -18,21 +19,26 @@ official sources and follow their current license and access requirements.
 
 - Configured metadata: `data/raw/chapman/Diagnostics.xlsx`
 - Configured signals: `data/raw/chapman/ECGData/`
+- Native signal unit: `uV`
 - Expected native label field: `Rhythm`
-- TODO: normalize release-specific column names, waveform CSV orientation, units, durations,
+- The waveform CSVs are lead-last on disk; the loader reorders them to lead-first `(12, L)`.
+- Loader converts the raw waveforms from `uV` to the shared benchmark unit `mV`.
+- TODO: normalize release-specific column names, waveform CSV orientation, durations,
   patient identifiers, and the interpretation of Chapman versus Ningbo as one or two domains.
 
 ## SPH
 
-- Configured normalized index: `data/raw/sph/metadata.csv`
+- Configured metadata: `data/raw/sph/metadata.csv`
 - Configured signals: `data/raw/sph/records/`
-- Expected native label field: `labels`
+- Native signal unit: `mV`
+- Expected native label field: `AHA_Code`
 - TODO: write a release-specific index converter and validate code 82 as the prolonged-PR proxy.
 
 ## CODE-15%
 
 - Configured annotations: `data/raw/code15/exams.csv`
 - Configured signals: `data/raw/code15/exams_part0.hdf5` through `exams_part17.hdf5`
+- Native signal unit: `mV`
 - Waveforms are float32 `(4096, 12)` arrays at 400 Hz, ordered I, II, III, aVR, aVL,
   aVF, V1--V6. The loader returns lead-first `(12, 4096)` arrays without removing the
   release's leading/trailing zero padding.

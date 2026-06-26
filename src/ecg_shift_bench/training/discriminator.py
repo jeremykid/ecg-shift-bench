@@ -30,12 +30,12 @@ from ecg_shift_bench.datasets.discriminator import (
 )
 from ecg_shift_bench.datasets.registry import create_dataset
 from ecg_shift_bench.evaluation.discriminator import dataset_classification_metrics
+from ecg_shift_bench.models.registry import canonical_model_name, create_model
 from ecg_shift_bench.labels.dataset_ids import (
     DATASET_ID_ORDER,
     canonical_dataset_name,
     selected_dataset_names,
 )
-from ecg_shift_bench.models.resnet1d_wang import resnet1d_wang
 from ecg_shift_bench.training.optim import create_optimizer
 
 
@@ -339,6 +339,8 @@ def run_dataset_discriminator(
         if cohort.empty:
             raise ValueError("Discriminator cohort is empty after filtering")
 
+        model_config = dict(experiment_config["model"])
+        model_name = canonical_model_name(str(model_config.get("name", "")))
         selected_names = (
             DATASET_ID_ORDER if mode == "multiclass" else selected_dataset_names(list(pair or ()))
         )
@@ -368,6 +370,8 @@ def run_dataset_discriminator(
         )
         status["amp_fp16"] = amp_enabled
         status["label_names"] = label_names
+        status["model_name"] = model_name
+        status["model_config"] = model_config
         status["determinism"] = {
             "seeded": True,
             "deterministic_algorithms": "warn_only",
@@ -415,12 +419,7 @@ def run_dataset_discriminator(
             pin_memory=pin_memory,
         )
 
-        model = resnet1d_wang(
-            in_channels=int(experiment_config["model"]["in_channels"]),
-            num_labels=len(label_names),
-            channels=int(experiment_config["model"].get("channels", 128)),
-            dropout=float(experiment_config["model"].get("dropout", 0.5)),
-        ).to(device)
+        model = create_model(model_config, num_labels=len(label_names)).to(device)
         optimizer = create_optimizer(
             model.parameters(),
             experiment_config["training"]["optimizer"],

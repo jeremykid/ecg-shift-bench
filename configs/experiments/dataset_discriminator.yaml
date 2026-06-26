@@ -1,10 +1,12 @@
-experiment: dataset_discriminator_resnet1d_wang_v1
+experiment: dataset_discriminator_xresnet1d_v1
 method: dataset_discriminator
 model:
-  name: resnet1d_wang
+  name: xresnet1d
   in_channels: 12
-  channels: 128
-  dropout: 0.5
+  channels: 64
+  layers: [2, 2, 2, 2]
+  expansion: 4
+  dropout: 0.0
 training:
   batch_size: 64
   epochs: 5

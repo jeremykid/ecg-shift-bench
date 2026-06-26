@@ -122,9 +122,9 @@ scripts/                 Preparation, splitting, training, evaluation CLIs
 src/ecg_shift_bench/
   datasets/              Common interface and source adapters
   labels/                Canonical task and harmonization
-  preprocessing/         Resampling, sizing, normalization, quality checks
+  preprocessing/         Resampling, sizing, unit alignment, quality checks
   splits/                Patient-safe and domain-held-out splits
-  models/                Small ResNet1D and InceptionTime-style models
+  models/                Small ResNet1D, ResNet1DWang, XResNet-style, and InceptionTime models
   methods/               Source-only baseline and DA extension points
   training/              Loss, optimizer, and epoch helpers
   evaluation/            Discrimination, calibration, and domain-gap metrics

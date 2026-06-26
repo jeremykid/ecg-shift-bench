@@ -8,6 +8,11 @@ import shlex
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = PROJECT_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
 from ecg_shift_bench.labels.dataset_ids import DATASET_ID_ORDER
 from ecg_shift_bench.training.discriminator import DatasetSpec, run_dataset_discriminator
 from ecg_shift_bench.utils.config import load_yaml, require_keys

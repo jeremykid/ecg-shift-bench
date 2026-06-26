@@ -98,6 +98,7 @@ def test_run_dataset_discriminator_writes_artifacts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     datasets = _fake_datasets()
+    captured: dict[str, object] = {}
 
     monkeypatch.setattr(
         "ecg_shift_bench.datasets.discriminator.build_split_manifest",
@@ -112,13 +113,16 @@ def test_run_dataset_discriminator_writes_artifacts(
         lambda requested: torch.device("cpu"),
     )
     monkeypatch.setattr(
-        "ecg_shift_bench.training.discriminator.resnet1d_wang",
-        lambda **kwargs: nn.Sequential(nn.Flatten(), nn.Linear(12 * 8, kwargs["num_labels"])),
+        "ecg_shift_bench.training.discriminator.create_model",
+        lambda model_config, *, num_labels: captured.update(
+            {"model_config": dict(model_config), "num_labels": num_labels}
+        )
+        or nn.Sequential(nn.Flatten(), nn.Linear(12 * 8, num_labels)),
     )
 
     config = {
-        "experiment": "dataset_discriminator_resnet1d_wang_v1",
-        "model": {"in_channels": 12, "channels": 8, "dropout": 0.0},
+        "experiment": "dataset_discriminator_xresnet1d_v1",
+        "model": {"name": "xresnet1d", "in_channels": 12, "channels": 8, "dropout": 0.0},
         "training": {
             "seed": 42,
             "batch_size": 2,
@@ -130,7 +134,7 @@ def test_run_dataset_discriminator_writes_artifacts(
         },
     }
     config_path = tmp_path / "dataset_discriminator.yaml"
-    config_path.write_text("experiment: dataset_discriminator_resnet1d_wang_v1\n", encoding="utf-8")
+    config_path.write_text("experiment: dataset_discriminator_xresnet1d_v1\n", encoding="utf-8")
     status = run_dataset_discriminator(
         experiment_config=config,
         experiment_config_path=config_path,
@@ -152,6 +156,8 @@ def test_run_dataset_discriminator_writes_artifacts(
     )
 
     assert status["status"] == "preflight_completed"
+    assert captured["model_config"]["name"] == "xresnet1d"
+    assert captured["num_labels"] == 4
     assert (tmp_path / "outputs" / "run_status.json").exists()
     assert (tmp_path / "outputs" / "cohort_manifest.csv").exists()
     assert (tmp_path / "outputs" / "split_manifest.csv").exists()
@@ -203,13 +209,13 @@ def test_run_dataset_discriminator_random_label_preserves_permuted_targets(
         lambda requested: torch.device("cpu"),
     )
     monkeypatch.setattr(
-        "ecg_shift_bench.training.discriminator.resnet1d_wang",
-        lambda **kwargs: nn.Sequential(nn.Flatten(), nn.Linear(12 * 8, kwargs["num_labels"])),
+        "ecg_shift_bench.training.discriminator.create_model",
+        lambda model_config, *, num_labels: nn.Sequential(nn.Flatten(), nn.Linear(12 * 8, num_labels)),
     )
 
     config = {
-        "experiment": "dataset_discriminator_resnet1d_wang_v1",
-        "model": {"in_channels": 12, "channels": 8, "dropout": 0.0},
+        "experiment": "dataset_discriminator_xresnet1d_v1",
+        "model": {"name": "xresnet1d", "in_channels": 12, "channels": 8, "dropout": 0.0},
         "training": {
             "seed": 42,
             "batch_size": 2,
@@ -221,7 +227,7 @@ def test_run_dataset_discriminator_random_label_preserves_permuted_targets(
         },
     }
     config_path = tmp_path / "dataset_discriminator.yaml"
-    config_path.write_text("experiment: dataset_discriminator_resnet1d_wang_v1\n", encoding="utf-8")
+    config_path.write_text("experiment: dataset_discriminator_xresnet1d_v1\n", encoding="utf-8")
     run_dataset_discriminator(
         experiment_config=config,
         experiment_config_path=config_path,

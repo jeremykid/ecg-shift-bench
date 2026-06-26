@@ -29,8 +29,8 @@ def test_cli_builds_dataset_specs_and_calls_runner(
         script,
         "load_yaml",
         lambda path: {
-            "experiment": "dataset_discriminator_resnet1d_wang_v1",
-            "model": {"in_channels": 12},
+            "experiment": "dataset_discriminator_xresnet1d_v1",
+            "model": {"name": "xresnet1d", "in_channels": 12},
             "training": {
                 "seed": 42,
                 "batch_size": 2,

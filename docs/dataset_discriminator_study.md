@@ -5,10 +5,13 @@ This study trains a model to predict which aligned ECG dataset a record came fro
 It uses the shared aligned waveform contract:
 
 - lead-first ECG tensors with shape `(12, L)`
+- canonical 12-lead order
 - unified sampling rate
 - fixed signal length
-- per-lead z-score normalization
-- canonical 12-lead order
+- unified physical unit (`mV`)
+
+The default discriminator backbone is config-driven and currently set to `xresnet1d`, an
+XResNet-style 1D backbone.
 
 Supported study modes:
 
