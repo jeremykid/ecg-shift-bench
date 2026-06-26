@@ -41,7 +41,8 @@ path. It is located at
 - three Wang residual stages using kernel sizes 5 and 3
 - adaptive max and average pooling concatenation
 - six-logit classification head
-- per-lead z-score normalization, without filtering, cropping, or augmentation
+- no shared benchmark normalization; this legacy baseline consumes raw mV waveforms
+  without filtering, cropping, or augmentation
 - unweighted `BCEWithLogitsLoss`
 - AdamW, learning rate `1e-3`, weight decay `1e-4`
 - batch size 64, eight workers, seed 42, and no scheduler

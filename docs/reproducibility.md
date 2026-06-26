@@ -6,7 +6,7 @@ For each benchmark result, archive or record:
 - indexing script version, raw-to-processed counts, exclusions, and missing/corrupt records;
 - immutable record-to-patient/domain index and split manifests with hashes;
 - label-map version, label prevalence by split/domain, and unresolved mapping assumptions;
-- lead order, units, sampling rate, filters, crop/padding rule, normalization, and quality policy;
+- lead order, source/target units, sampling rate, filters, crop/padding rule, and quality policy;
 - full experiment YAML, source/target protocol, seed, dependency lock/environment, and hardware;
 - model checkpoint, training logs, target-label access statement, and selection criterion;
 - per-domain/per-label metrics, support, uncertainty intervals, and undefined-metric handling.

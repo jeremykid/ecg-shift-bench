@@ -6,7 +6,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from ecg_shift_bench.datasets.alignment import align_ecg_signal
+from ecg_shift_bench.datasets.alignment import align_ecg_signal, convert_signal_units
 from ecg_shift_bench.datasets.base import BaseECGDataset
 from ecg_shift_bench.datasets.chapman import ChapmanDataset
 from ecg_shift_bench.datasets.sph import SPHDataset
@@ -30,15 +30,46 @@ class TinyDataset(BaseECGDataset):
         return {"AF": 1, "RBBB": 0, "LBBB": 0, "1dAVB": 0, "SB": 0, "ST": 0}
 
 
-def test_align_ecg_signal_resamples_sizes_and_normalizes() -> None:
+def test_align_ecg_signal_resamples_sizes_and_preserves_units() -> None:
     signal = np.tile(np.linspace(-1.0, 1.0, 4096, dtype=np.float32), (12, 1))
 
-    aligned = align_ecg_signal(signal, source_rate=400, target_rate=500, target_length=5000)
+    aligned = align_ecg_signal(
+        signal,
+        source_rate=400,
+        target_rate=500,
+        target_length=5000,
+        source_unit="mV",
+        target_unit="mV",
+    )
 
     assert aligned.shape == (12, 5000)
     assert aligned.dtype == np.float32
-    np.testing.assert_allclose(aligned.mean(axis=-1), 0.0, atol=1e-5)
-    np.testing.assert_allclose(aligned.std(axis=-1), 1.0, atol=1e-5)
+    assert np.isfinite(aligned).all()
+
+
+def test_convert_signal_units_scales_microvolt_to_millivolt() -> None:
+    signal = np.full((12, 8), 2500.0, dtype=np.float32)
+
+    converted = convert_signal_units(signal, source_unit="uV", target_unit="mV")
+
+    np.testing.assert_allclose(converted, signal * 1e-3)
+    assert converted.dtype == np.float32
+
+
+def test_align_ecg_signal_converts_microvolt_inputs_to_millivolts() -> None:
+    signal = np.full((12, 5000), 2500.0, dtype=np.float32)
+
+    aligned = align_ecg_signal(
+        signal,
+        source_rate=500,
+        target_rate=500,
+        target_length=5000,
+        source_unit="uV",
+        target_unit="mV",
+    )
+
+    np.testing.assert_allclose(aligned, 2.5)
+    assert aligned.dtype == np.float32
 
 
 def test_dataset_load_aligned_signal_uses_shared_contract() -> None:
@@ -50,6 +81,8 @@ def test_dataset_load_aligned_signal_uses_shared_contract() -> None:
             "target_length": 5000,
             "record_id_column": "record_id",
             "patient_id_column": "patient_id",
+            "source_unit": "mV",
+            "target_unit": "mV",
         },
     )
 
@@ -58,8 +91,6 @@ def test_dataset_load_aligned_signal_uses_shared_contract() -> None:
 
     assert aligned.shape == (12, 5000)
     assert aligned.dtype == np.float32
-    np.testing.assert_allclose(aligned.mean(axis=-1), 0.0, atol=1e-5)
-    np.testing.assert_allclose(aligned.std(axis=-1), 1.0, atol=1e-5)
     np.testing.assert_array_equal(sample.signal, aligned)
     assert sample.record_id == "r1"
     assert sample.patient_id == "p1"
@@ -67,6 +98,9 @@ def test_dataset_load_aligned_signal_uses_shared_contract() -> None:
     assert sample.source_sampling_rate == 400
     assert sample.source_length == 4096
     assert sample.labels["AF"] == 1
+    assert sample.meta["source_unit"] == "mV"
+    assert sample.meta["target_unit"] == "mV"
+    assert sample.meta["unit_converted"] is False
 
 
 def test_chapman_loader_reads_csv_waveform_as_lead_first(tmp_path: Path) -> None:
@@ -86,6 +120,8 @@ def test_chapman_loader_reads_csv_waveform_as_lead_first(tmp_path: Path) -> None
             "records_root": "ECGData",
             "record_id_column": "FileName",
             "label_column": "Rhythm",
+            "source_unit": "uV",
+            "target_unit": "mV",
         },
     )
 
