@@ -56,15 +56,6 @@ def crop_or_pad(
     return array.copy()
 
 
-def per_lead_zscore(signal: np.ndarray, eps: float = 1e-6) -> np.ndarray:
-    """Normalize each lead independently, keeping constant leads at zero."""
-    array = _as_lead_first(signal)
-    mean = array.mean(axis=-1, keepdims=True)
-    std = array.std(axis=-1, keepdims=True)
-    safe_std = np.where(std < eps, 1.0, std)
-    return ((array - mean) / safe_std).astype(np.float32)
-
-
 def bandpass_filter(
     signal: np.ndarray,
     sampling_rate: int,

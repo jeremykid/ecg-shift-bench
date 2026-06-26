@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import wfdb
 
 from ecg_shift_bench.datasets._tabular import TabularSkeletonDataset
 
@@ -51,6 +50,8 @@ class PTBXLDataset(TabularSkeletonDataset):
 
     def load_signal(self, record_id: str) -> np.ndarray:
         """Load one high- or low-resolution WFDB record as ``(12, samples)``."""
+        import wfdb
+
         row = self._metadata_row(record_id)
         path_column = self.config.get("record_path_column", "filename_hr")
         if path_column not in row.index:
