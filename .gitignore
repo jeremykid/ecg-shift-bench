@@ -225,12 +225,7 @@ data/processed/*
 data/splits/*
 !data/splits/.gitkeep
 checkpoints/
+outputs/
 runs/
 *.pt
 *.pth
-
-# Track only the dataset statistics results tree.
-outputs/*
-!outputs/dataset_statistics/
-outputs/dataset_statistics/*
-!outputs/dataset_statistics/**
