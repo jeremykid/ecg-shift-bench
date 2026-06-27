@@ -1,0 +1,4 @@
+split,records,patients
+train,17418,15023
+validation,2183,1942
+test,2198,1904
