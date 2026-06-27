@@ -1,0 +1,26 @@
+{
+  "dataset": "CODE15",
+  "domain": "code15_brazil",
+  "lead_order": [
+    "I",
+    "II",
+    "III",
+    "aVR",
+    "aVL",
+    "aVF",
+    "V1",
+    "V2",
+    "V3",
+    "V4",
+    "V5",
+    "V6"
+  ],
+  "resampling_method": "polyphase_resample_signal",
+  "resampling_note": "Resampling standardizes the temporal grid for a common model input contract; it does not add new physiological information.",
+  "source_sampling_rate": 400,
+  "source_unit": "mV",
+  "target_length": 5000,
+  "target_sampling_rate": 500,
+  "target_unit": "mV",
+  "unit_converted": false
+}
