@@ -10,10 +10,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ecg_shift_bench.datasets.alignment import CANONICAL_LEAD_ORDER
+from ecg_shift_bench.datasets.alignment import CANONICAL_LEAD_ORDER, canonical_unit_name
 from ecg_shift_bench.datasets.base import BaseECGDataset
 from ecg_shift_bench.labels.canonical import CANONICAL_LABELS
-from ecg_shift_bench.splits.patient_split import assert_no_patient_overlap, patient_level_split
+from ecg_shift_bench.splits.patient_split import (
+    assert_no_patient_overlap,
+    patient_level_stratified_split,
+)
 
 DEFAULT_SEED = 42
 DEFAULT_VALIDATION_SIZE = 0.1
@@ -34,7 +37,7 @@ class DatasetAuditResult:
 def audit_dataset(
     dataset: BaseECGDataset,
     *,
-    waveform_check_limit: int = 0,
+    waveform_check_limit: int | None = 0,
 ) -> DatasetAuditResult:
     """Audit metadata, labels, optional waveforms, and standardized splits."""
     metadata = dataset.load_metadata()
@@ -42,11 +45,14 @@ def audit_dataset(
     patient_col = dataset.config.get("patient_id_column")
     records_total = len(metadata)
     exclusions = _waveform_exclusions(dataset, metadata, record_col, waveform_check_limit)
-    split_manifest, split_policy = build_split_manifest(dataset, metadata)
-    label_summary = _label_summary(dataset, metadata, record_col)
+    excluded_ids = set(exclusions["record_id"].astype(str).tolist()) if not exclusions.empty else set()
+    usable_metadata = metadata.loc[~metadata[record_col].astype(str).isin(excluded_ids)].copy()
+    split_manifest, split_policy = build_split_manifest(dataset, usable_metadata)
+    label_summary = _label_summary(dataset, usable_metadata, record_col)
+    split_label_summary = _split_label_summary(dataset, split_manifest)
     patient_count = (
-        int(metadata[str(patient_col)].nunique(dropna=True))
-        if patient_col and str(patient_col) in metadata.columns
+        int(usable_metadata[str(patient_col)].nunique(dropna=True))
+        if patient_col and str(patient_col) in usable_metadata.columns
         else None
     )
     records_excluded = int(exclusions["record_id"].nunique()) if not exclusions.empty else 0
@@ -54,13 +60,14 @@ def audit_dataset(
         "dataset": dataset.name,
         "domain": dataset.domain,
         "records_total": int(records_total),
-        "records_usable": int(records_total - records_excluded),
+        "records_usable": int(len(usable_metadata)),
         "records_excluded": records_excluded,
         "patients_total": patient_count,
         "available_labels": label_summary["available_labels"],
         "missing_labels": label_summary["missing_labels"],
         "positive_counts": label_summary["positive_counts"],
         "positive_prevalence": label_summary["positive_prevalence"],
+        "split_label_summary": split_label_summary,
         "waveform_check": _waveform_check_summary(dataset, waveform_check_limit, records_total),
         "split_policy": split_policy,
     }
@@ -83,15 +90,19 @@ def build_split_manifest(
     if dataset.name.upper() == "PTBXL":
         splits = _ptbxl_official_splits(metadata)
         policy = _split_policy("official", "patient", "official_strat_fold")
+        policy["stratification"] = "official_folds"
     elif patient_col and str(patient_col) in metadata.columns:
-        splits = patient_level_split(
-            metadata,
-            patient_column=str(patient_col),
-            validation_size=DEFAULT_VALIDATION_SIZE,
-            test_size=DEFAULT_TEST_SIZE,
-            seed=DEFAULT_SEED,
+        splits, stratified = _patient_level_splits(dataset, metadata, record_col, str(patient_col))
+        policy = _split_policy(
+            "generated",
+            "patient",
+            "patient_level_stratified_signature" if stratified else "patient_level_random",
         )
-        policy = _split_policy("generated", "patient", "patient_level_random")
+        policy["stratification"] = "patient_label_signature" if stratified else "none"
+        if not stratified:
+            policy["split_note"] = (
+                "Fallback random patient split used because stratified patient split was not feasible"
+            )
     else:
         splits = _record_level_split(metadata, seed=DEFAULT_SEED)
         policy = _split_policy(
@@ -101,6 +112,7 @@ def build_split_manifest(
             leakage_status="unavailable",
             leakage_reason="patient_id_column_unavailable",
         )
+        policy["stratification"] = "record_level_random"
 
     manifest = _manifest_from_splits(
         dataset,
@@ -142,12 +154,15 @@ def _waveform_exclusions(
     dataset: BaseECGDataset,
     metadata: pd.DataFrame,
     record_col: str,
-    limit: int,
+    limit: int | None,
 ) -> pd.DataFrame:
     rows: list[dict[str, str]] = []
-    if limit <= 0:
+    if limit == 0:
         return pd.DataFrame(columns=["record_id", "reason"])
-    for record_id in metadata[record_col].astype(str).head(limit):
+    records = metadata[record_col].astype(str)
+    if limit is not None and limit > 0:
+        records = records.head(limit)
+    for record_id in records:
         try:
             _validate_aligned_signal(dataset.load_aligned_signal(record_id), dataset)
         except Exception as error:  # noqa: BLE001 - audit must record all exclusion reasons.
@@ -157,16 +172,26 @@ def _waveform_exclusions(
 
 def _waveform_check_summary(
     dataset: BaseECGDataset,
-    waveform_check_limit: int,
+    waveform_check_limit: int | None,
     records_total: int,
 ) -> dict[str, Any]:
+    source_unit = canonical_unit_name(str(dataset.config.get("source_unit", "mV")))
+    target_unit = canonical_unit_name(str(dataset.config.get("target_unit", "mV")))
+    if waveform_check_limit is None:
+        checked_records = records_total
+        mode = "full"
+    else:
+        checked_records = min(max(waveform_check_limit, 0), records_total)
+        mode = "metadata_only" if waveform_check_limit == 0 else "sampled"
     return {
-        "checked_records": min(max(waveform_check_limit, 0), records_total),
-        "mode": "sampled" if waveform_check_limit > 0 else "metadata_only",
+        "checked_records": checked_records,
+        "mode": mode,
         "target_sampling_rate": int(dataset.config.get("target_sampling_rate", 500)),
         "target_length": int(dataset.config.get("target_length", 5000)),
         "lead_order": dataset.config.get("lead_order", CANONICAL_LEAD_ORDER),
-        "normalization": dataset.config.get("normalization", "per_lead_zscore"),
+        "source_unit": source_unit,
+        "target_unit": target_unit,
+        "unit_converted": source_unit != target_unit,
     }
 
 
@@ -179,13 +204,82 @@ def _validate_aligned_signal(signal: np.ndarray, dataset: BaseECGDataset) -> Non
         raise ValueError(f"expected float32 aligned signal, got {signal.dtype}")
     if not np.isfinite(signal).all():
         raise ValueError("aligned signal contains non-finite values")
-    if dataset.config.get("normalization", "per_lead_zscore") == "per_lead_zscore":
-        means = signal.mean(axis=-1)
-        stds = signal.std(axis=-1)
-        if not np.allclose(means, 0.0, atol=1e-4):
-            raise ValueError("aligned signal is not centered per lead")
-        if not np.all((stds < 1e-6) | np.isclose(stds, 1.0, atol=1e-3)):
-            raise ValueError("aligned signal is not z-scored per lead")
+
+
+def _split_label_summary(
+    dataset: BaseECGDataset,
+    split_manifest: pd.DataFrame,
+) -> dict[str, Any]:
+    summary: dict[str, Any] = {}
+    for split_name, frame in split_manifest.groupby("split", sort=False):
+        positive_counts = {label: 0 for label in CANONICAL_LABELS}
+        for record_id in frame["record_id"].astype(str):
+            labels = dataset.get_labels(record_id)
+            for label in CANONICAL_LABELS:
+                positive_counts[label] += int(labels[label])
+        total = len(frame)
+        summary[str(split_name)] = {
+            "records": int(total),
+            "patients": int(frame["patient_id"].nunique()) if "patient_id" in frame.columns else None,
+            "positive_counts": positive_counts,
+            "positive_prevalence": {
+                label: (count / total if total else 0.0)
+                for label, count in positive_counts.items()
+            },
+        }
+    return summary
+
+
+def _patient_level_splits(
+    dataset: BaseECGDataset,
+    metadata: pd.DataFrame,
+    record_col: str,
+    patient_col: str,
+) -> tuple[dict[str, pd.DataFrame], bool]:
+    patient_rows = _patient_label_table(dataset, metadata, record_col, patient_col)
+    patient_ids, stratified = patient_level_stratified_split(
+        patient_rows,
+        patient_column=patient_col,
+        strata_column="stratum",
+        validation_size=DEFAULT_VALIDATION_SIZE,
+        test_size=DEFAULT_TEST_SIZE,
+        seed=DEFAULT_SEED,
+    )
+
+    def select(patient_ids_subset: set[object]) -> pd.DataFrame:
+        selected = metadata.loc[metadata[patient_col].isin(patient_ids_subset)].copy()
+        return selected.reset_index(drop=True)
+
+    splits = {name: select(ids) for name, ids in patient_ids.items()}
+    assert_no_patient_overlap(splits, patient_col)
+    return splits, stratified
+
+
+def _patient_label_table(
+    dataset: BaseECGDataset,
+    metadata: pd.DataFrame,
+    record_col: str,
+    patient_col: str,
+) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for patient_id, frame in metadata.groupby(patient_col, sort=False):
+        patient_labels = {label: 0 for label in CANONICAL_LABELS}
+        for record_id in frame[record_col].astype(str):
+            labels = dataset.get_labels(record_id)
+            for label in CANONICAL_LABELS:
+                patient_labels[label] = max(patient_labels[label], int(labels[label]))
+        rows.append(
+            {
+                patient_col: patient_id,
+                "stratum": _label_signature(patient_labels),
+            }
+        )
+    return pd.DataFrame(rows, columns=[patient_col, "stratum"])
+
+
+def _label_signature(labels: dict[str, int]) -> str:
+    positives = [label for label in CANONICAL_LABELS if int(labels.get(label, 0))]
+    return "NORMAL" if not positives else "+".join(positives)
 
 
 def _label_summary(
@@ -299,6 +393,7 @@ def _split_policy(
         "split_source": split_source,
         "split_level": split_level,
         "method": method,
+        "split_algorithm": method,
         "train_fraction": 0.7 if split_source == "generated" else None,
         "validation_fraction": DEFAULT_VALIDATION_SIZE if split_source == "generated" else None,
         "test_fraction": DEFAULT_TEST_SIZE if split_source == "generated" else None,
@@ -312,6 +407,8 @@ def _reproducibility(dataset: BaseECGDataset) -> dict[str, Any]:
     source_rate = int(dataset.config.get("sampling_rate", 500))
     target_rate = int(dataset.config.get("target_sampling_rate", 500))
     target_length = int(dataset.config.get("target_length", 5000))
+    source_unit = canonical_unit_name(str(dataset.config.get("source_unit", "mV")))
+    target_unit = canonical_unit_name(str(dataset.config.get("target_unit", "mV")))
     return {
         "dataset": dataset.name,
         "domain": dataset.domain,
@@ -319,7 +416,9 @@ def _reproducibility(dataset: BaseECGDataset) -> dict[str, Any]:
         "target_sampling_rate": target_rate,
         "target_length": target_length,
         "lead_order": dataset.config.get("lead_order", CANONICAL_LEAD_ORDER),
-        "normalization": dataset.config.get("normalization", "per_lead_zscore"),
+        "source_unit": source_unit,
+        "target_unit": target_unit,
+        "unit_converted": source_unit != target_unit,
         "resampling_method": "polyphase_resample_signal",
         "resampling_note": (
             "Resampling standardizes the temporal grid for a common model input contract; "

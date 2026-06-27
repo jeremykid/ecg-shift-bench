@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
 
@@ -50,6 +51,32 @@ def test_audit_counts_records_patients_labels_and_prevalence(tmp_path: Path) -> 
     }
     assert result.audit["positive_counts"]["AF"] == 2
     assert result.audit["positive_prevalence"]["AF"] == 2 / 3
+    assert result.audit["waveform_check"] == {
+        "checked_records": 0,
+        "mode": "metadata_only",
+        "target_sampling_rate": 500,
+        "target_length": 5000,
+        "lead_order": [
+            "I",
+            "II",
+            "III",
+            "aVR",
+            "aVL",
+            "aVF",
+            "V1",
+            "V2",
+            "V3",
+            "V4",
+            "V5",
+            "V6",
+        ],
+        "source_unit": "mV",
+        "target_unit": "mV",
+        "unit_converted": False,
+    }
+    assert result.reproducibility["source_unit"] == "mV"
+    assert result.reproducibility["target_unit"] == "mV"
+    assert result.reproducibility["unit_converted"] is False
     assert result.exclusions.empty
 
 
@@ -85,12 +112,43 @@ def test_patient_level_split_manifest_has_no_patient_overlap(tmp_path: Path) -> 
             "AHA_Code": ["22"] * 12,
         }
     )
+    metadata.to_csv(tmp_path / "metadata.csv", index=False)
 
     manifest, policy = build_split_manifest(dataset, metadata)
 
     assert set(manifest["split"]) == {"train", "validation", "test"}
     assert policy["split_level"] == "patient"
     assert policy["leakage_check"]["status"] == "passed"
+
+
+def test_patient_level_split_prefers_label_aware_strategy_when_possible(tmp_path: Path) -> None:
+    dataset = CODE15Dataset(tmp_path)
+    rows = []
+    labels = [
+        {"AF": 1, "RBBB": 0, "LBBB": 0, "1dAVb": 0, "SB": 0, "ST": 0},
+        {"AF": 0, "RBBB": 1, "LBBB": 0, "1dAVb": 0, "SB": 0, "ST": 0},
+    ]
+    for index in range(30):
+        patient_index = index
+        label_block = labels[index % len(labels)]
+        rows.append(
+            {
+                "exam_id": index + 1,
+                "patient_id": f"p{patient_index:02d}",
+                "trace_file": "part.h5",
+                **label_block,
+            }
+        )
+    metadata = pd.DataFrame(rows)
+    metadata.to_csv(tmp_path / "exams.csv", index=False)
+
+    manifest, policy = build_split_manifest(dataset, metadata)
+
+    assert policy["split_level"] == "patient"
+    assert policy["split_algorithm"] == "patient_level_stratified_signature"
+    assert set(manifest["split"]) == {"train", "validation", "test"}
+    assert policy["leakage_check"]["status"] == "passed"
+    assert manifest.groupby("split")["patient_id"].nunique().sum() == 30
 
 
 def test_chapman_uses_record_level_split_without_patient_leakage_check(tmp_path: Path) -> None:
@@ -137,6 +195,8 @@ def test_write_alignment_audit_outputs_creates_expected_files(tmp_path: Path) ->
     assert result.reproducibility["source_sampling_rate"] == 400
     assert result.reproducibility["target_sampling_rate"] == 500
     assert result.reproducibility["resampling_method"] == "polyphase_resample_signal"
+    assert result.reproducibility["source_unit"] == "mV"
+    assert result.reproducibility["target_unit"] == "mV"
 
 
 def test_waveform_audit_validates_aligned_contract(tmp_path: Path) -> None:
@@ -162,6 +222,8 @@ def test_waveform_audit_validates_aligned_contract(tmp_path: Path) -> None:
             "sampling_rate": 500,
             "target_sampling_rate": 500,
             "target_length": 5000,
+            "source_unit": "uV",
+            "target_unit": "mV",
         },
     )
 
@@ -187,9 +249,40 @@ def test_waveform_audit_validates_aligned_contract(tmp_path: Path) -> None:
             "V5",
             "V6",
         ],
-        "normalization": "per_lead_zscore",
+        "source_unit": "uV",
+        "target_unit": "mV",
+        "unit_converted": True,
     }
     assert result.exclusions.empty
+
+
+def test_full_waveform_audit_records_corrupted_records(tmp_path: Path) -> None:
+    records = tmp_path / "records"
+    records.mkdir(parents=True)
+    with h5py.File(records / "A00001.h5", "w") as handle:
+        handle.create_dataset("not_ecg", data=np.zeros((12, 5), dtype=np.float32))
+    pd.DataFrame({"ECG_ID": ["A00001"], "Patient_ID": ["S00001"], "AHA_Code": ["22"]}).to_csv(
+        tmp_path / "metadata.csv",
+        index=False,
+    )
+    dataset = SPHDataset(
+        tmp_path,
+        {
+            "metadata_file": "metadata.csv",
+            "records_root": "records",
+            "record_id_column": "ECG_ID",
+            "patient_id_column": "Patient_ID",
+            "label_column": "AHA_Code",
+        },
+    )
+
+    result = audit_dataset(dataset, waveform_check_limit=None)
+
+    assert result.audit["waveform_check"]["mode"] == "full"
+    assert result.audit["records_usable"] == 0
+    assert result.audit["records_excluded"] == 1
+    assert not result.exclusions.empty
+    assert "missing dataset" in result.exclusions.iloc[0]["reason"].lower()
 
 
 def test_audit_alignment_cli_writes_expected_files(tmp_path: Path) -> None:
