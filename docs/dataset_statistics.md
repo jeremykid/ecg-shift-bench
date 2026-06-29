@@ -56,3 +56,21 @@ The batch report is written to:
 
 The generated summaries report the split strategy, sampling rate, target length, label counts,
 positive rates, split-level label balance, and any excluded or invalid records.
+
+## Visualizations and concise summary
+
+Generate publication-ready figures and a concise interpretation report from the exported
+statistics without accessing raw ECG waveform files:
+
+```bash
+python scripts/visualize_dataset_statistics.py \
+  --stats-dir outputs/dataset_statistics \
+  --output-dir outputs/dataset_statistics/figures
+```
+
+The command writes four figures and `dataset_statistics_summary.md` to the output directory:
+positive-rate and positive-count heatmaps, a cross-dataset label-prior range plot, and a
+split-to-overall label-rate gap heatmap.
+Use `--format pdf` or `--format svg` for vector output; PNG is the default. Missing per-dataset
+inputs are reported in the generated summary while remaining datasets and figures are still
+processed.
