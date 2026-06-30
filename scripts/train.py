@@ -16,6 +16,7 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from ecg_shift_bench.models.resnet1d import ResNet1D
+from ecg_shift_bench.training.issue11_baseline import run_issue11_baseline
 from ecg_shift_bench.training.optim import create_optimizer
 from ecg_shift_bench.training.ptbxl_baseline import run_ptbxl_baseline
 from ecg_shift_bench.training.trainer import train_one_epoch
@@ -50,6 +51,18 @@ def main() -> None:
     print(f"Validated experiment: {config.get('experiment', 'unnamed')}")
     if args.smoke_test:
         run_smoke_test(config)
+        return
+    if config.get("experiment") == "issue11-internal-resnet1d-baseline":
+        command = shlex.join([sys.executable, *sys.argv])
+        status = run_issue11_baseline(
+            experiment_config=config,
+            experiment_config_path=config_path,
+            requested_device=args.device,
+            command=command,
+            output_root_override=args.output_dir,
+            preflight_only=args.preflight_only,
+        )
+        print(f"Run status: {status['status']}")
         return
     if not args.root:
         print(
