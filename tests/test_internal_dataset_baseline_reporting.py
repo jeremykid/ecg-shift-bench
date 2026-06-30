@@ -3,10 +3,12 @@ from pathlib import Path
 import pandas as pd
 
 from ecg_shift_bench.labels.canonical import CANONICAL_LABELS
-from ecg_shift_bench.issue11_reporting import write_issue11_result_figures
+from ecg_shift_bench.internal_dataset_baseline_reporting import (
+    write_internal_dataset_baseline_result_figures,
+)
 
 
-def _write_issue11_summaries(output_root: Path) -> None:
+def _write_summaries(output_root: Path) -> None:
     summary = pd.DataFrame(
         [
             {
@@ -101,19 +103,19 @@ def _write_issue11_summaries(output_root: Path) -> None:
     pd.DataFrame(per_class_rows).to_csv(output_root / "per_class_summary.csv", index=False)
 
 
-def test_issue11_result_figures_are_written_from_saved_summaries(tmp_path: Path) -> None:
-    output_root = tmp_path / "outputs" / "issue11_internal_baseline_results"
+def test_result_figures_are_written_from_saved_summaries(tmp_path: Path) -> None:
+    output_root = tmp_path / "outputs" / "resnet1d_internal_dataset_baseline_results"
     output_root.mkdir(parents=True)
-    _write_issue11_summaries(output_root)
+    _write_summaries(output_root)
 
-    figure_paths = write_issue11_result_figures(output_root)
+    figure_paths = write_internal_dataset_baseline_result_figures(output_root)
 
     expected_keys = {
-        "issue11_overall_metrics_png",
-        "issue11_overall_metrics_svg",
-        "issue11_per_label_metrics_png",
-        "issue11_per_label_metrics_svg",
-        "issue11_readme",
+        "overall_metrics_png",
+        "overall_metrics_svg",
+        "per_label_metrics_png",
+        "per_label_metrics_svg",
+        "readme",
     }
     assert set(figure_paths) == expected_keys
     for path_text in figure_paths.values():

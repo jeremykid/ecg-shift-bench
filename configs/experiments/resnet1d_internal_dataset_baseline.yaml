@@ -1,4 +1,4 @@
-experiment: issue11-internal-resnet1d-baseline
+experiment: resnet1d-internal-dataset-baseline
 method: source_only
 source_datasets: [PTBXL, CODE15, CHAPMAN, SPH]
 target_datasets: []
@@ -29,8 +29,8 @@ training:
 evaluation:
   selection_metric: validation_macro_auprc
   metrics: [macro_auroc, micro_auroc, macro_auprc, micro_auprc, per_label_auroc, per_label_auprc, per_label_support]
-issue11:
-  output_root: outputs/issue11_internal_baseline_results
+baseline_results:
+  output_root: outputs/resnet1d_internal_dataset_baseline_results
   datasets:
     ptbxl:
       dataset: ptbxl

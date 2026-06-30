@@ -1,4 +1,4 @@
-"""Issue 11 internal supervised baselines for the four dataset adapters."""
+"""Internal supervised baseline runner for the four dataset adapters."""
 
 from __future__ import annotations
 
@@ -17,7 +17,9 @@ from torch.utils.data import DataLoader, Dataset
 
 from ecg_shift_bench.datasets.base import BaseECGDataset
 from ecg_shift_bench.datasets.registry import create_dataset
-from ecg_shift_bench.issue11_reporting import write_issue11_result_figures
+from ecg_shift_bench.internal_dataset_baseline_reporting import (
+    write_internal_dataset_baseline_result_figures,
+)
 from ecg_shift_bench.labels.canonical import CANONICAL_LABELS
 from ecg_shift_bench.labels.harmonize import labels_to_vector
 from ecg_shift_bench.models.resnet1d import ResNet1D
@@ -58,7 +60,7 @@ def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
 
 
 class Issue11ClassificationDataset(Dataset[tuple[Tensor, Tensor]]):
-    """Load aligned issue-11 waveforms and canonical multilabel targets."""
+    """Load aligned waveforms and canonical multilabel targets."""
 
     def __init__(
         self,
@@ -414,7 +416,7 @@ def _run_single_dataset(
     }
 
 
-def run_issue11_baseline(
+def run_internal_dataset_baseline(
     *,
     experiment_config: dict[str, Any],
     experiment_config_path: Path,
@@ -423,19 +425,19 @@ def run_issue11_baseline(
     output_root_override: str | Path | None = None,
     preflight_only: bool = False,
 ) -> dict[str, Any]:
-    """Run the four issue-11 internal baselines and write a combined summary."""
-    issue11_config = experiment_config.get("issue11")
-    if not issue11_config:
-        raise ValueError("Issue 11 config is missing the 'issue11' section")
-    dataset_runs = issue11_config.get("datasets", {})
+    """Run the internal baselines and write a combined summary."""
+    baseline_config = experiment_config.get("baseline_results")
+    if not baseline_config:
+        raise ValueError("Baseline config is missing the 'baseline_results' section")
+    dataset_runs = baseline_config.get("datasets", {})
     if not dataset_runs:
-        raise ValueError("Issue 11 config must define at least one dataset run")
+        raise ValueError("Baseline config must define at least one dataset run")
 
     output_root = (
         Path(output_root_override).expanduser().resolve()
         if output_root_override is not None
         else Path(
-            issue11_config.get("output_root", "outputs/issue11_internal_baseline_results")
+            baseline_config.get("output_root", "outputs/resnet1d_internal_dataset_baseline_results")
         ).expanduser().resolve()
     )
     output_root.mkdir(parents=True, exist_ok=True)
@@ -479,7 +481,10 @@ def run_issue11_baseline(
                 {
                     "dataset": dataset_key,
                     "dataset_name": result["dataset_name"],
-                    "output_dir": str(Path(issue11_config.get("output_root", "outputs/issue11_internal_baseline_results")) / dataset_key),
+                    "output_dir": str(
+                        Path(baseline_config.get("output_root", "outputs/resnet1d_internal_dataset_baseline_results"))
+                        / dataset_key
+                    ),
                     "train_records": result["split_counts"]["train"],
                     "validation_records": result["split_counts"]["validation"],
                     "test_records": result["split_counts"]["test"],
@@ -520,8 +525,8 @@ def run_issue11_baseline(
         summary_frame.to_csv(output_root / "results_summary.csv", index=False)
         per_class_frame = pd.DataFrame(per_class_rows)
         per_class_frame.to_csv(output_root / "per_class_summary.csv", index=False)
-        figure_paths = write_issue11_result_figures(output_root)
-        root_status["status"] = "preflight_completed" if preflight_only else "completed"
+        figure_paths = write_internal_dataset_baseline_result_figures(output_root)
+        root_status["status"] = "completed"
         root_status["finished_at"] = _utc_now()
         root_status["artifact_paths"]["results_summary"] = str(output_root / "results_summary.csv")
         root_status["artifact_paths"]["per_class_summary"] = str(output_root / "per_class_summary.csv")

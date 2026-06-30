@@ -43,8 +43,10 @@ def _write_split_manifest(path: Path) -> None:
     frame.to_csv(path, index=False)
 
 
-def test_issue11_run_writes_per_dataset_outputs_and_summary(tmp_path: Path, monkeypatch) -> None:
-    from ecg_shift_bench.training import issue11_baseline as issue11
+def test_internal_baseline_run_writes_per_dataset_outputs_and_summary(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from ecg_shift_bench.training import internal_dataset_baseline as baseline
 
     labels = {}
     for index, record_id in enumerate(["1", "2", "3", "4", "5", "6"], start=1):
@@ -63,10 +65,10 @@ def test_issue11_run_writes_per_dataset_outputs_and_summary(tmp_path: Path, monk
     def fake_create_dataset(name: str, root, config=None):
         return datasets[name]
 
-    monkeypatch.setattr(issue11, "create_dataset", fake_create_dataset)
-    monkeypatch.setattr(issue11, "preflight_forward_backward", lambda *args, **kwargs: 0.123)
+    monkeypatch.setattr(baseline, "create_dataset", fake_create_dataset)
+    monkeypatch.setattr(baseline, "preflight_forward_backward", lambda *args, **kwargs: 0.123)
     monkeypatch.setattr(
-        issue11,
+        baseline,
         "train_epoch",
         lambda *args, **kwargs: {
             "loss": 0.5,
@@ -90,7 +92,7 @@ def test_issue11_run_writes_per_dataset_outputs_and_summary(tmp_path: Path, monk
             "num_records": 2,
         }
 
-    monkeypatch.setattr(issue11, "evaluate", fake_evaluate)
+    monkeypatch.setattr(baseline, "evaluate", fake_evaluate)
 
     for dataset_name in datasets:
         split_dir = tmp_path / "splits" / dataset_name
@@ -102,7 +104,7 @@ def test_issue11_run_writes_per_dataset_outputs_and_summary(tmp_path: Path, monk
         config_path.write_text("name: fake\nroot: /tmp/fake\n", encoding="utf-8")
 
     experiment_config = {
-        "experiment": "issue11-internal-resnet1d-baseline",
+        "experiment": "resnet1d-internal-dataset-baseline",
         "method": "source_only",
         "source_datasets": ["PTBXL", "CODE15", "CHAPMAN", "SPH"],
         "target_datasets": [],
@@ -131,7 +133,7 @@ def test_issue11_run_writes_per_dataset_outputs_and_summary(tmp_path: Path, monk
                 "per_label_support",
             ],
         },
-        "issue11": {
+        "baseline_results": {
             "output_root": str(tmp_path / "outputs"),
             "datasets": {
                 name: {
@@ -143,18 +145,18 @@ def test_issue11_run_writes_per_dataset_outputs_and_summary(tmp_path: Path, monk
             },
         },
     }
-    config_path = tmp_path / "issue11.yaml"
+    config_path = tmp_path / "baseline.yaml"
     config_path.write_text(json.dumps(experiment_config), encoding="utf-8")
 
-    status = issue11.run_issue11_baseline(
+    status = baseline.run_internal_dataset_baseline(
         experiment_config=experiment_config,
         experiment_config_path=config_path,
         requested_device="cpu",
-        command="python scripts/train.py --config issue11.yaml",
+        command="python scripts/train.py --config baseline.yaml",
     )
 
     assert status["status"] == "completed"
-    output_root = Path(experiment_config["issue11"]["output_root"])
+    output_root = Path(experiment_config["baseline_results"]["output_root"])
     assert (output_root / "results_summary.csv").is_file()
     assert (output_root / "per_class_summary.csv").is_file()
     assert (output_root / "README.md").is_file()
@@ -167,11 +169,11 @@ def test_issue11_run_writes_per_dataset_outputs_and_summary(tmp_path: Path, monk
         assert (dataset_output / "split_manifest.csv").is_file()
 
 
-def test_issue11_runner_rejects_missing_dataset_config(tmp_path: Path) -> None:
-    from ecg_shift_bench.training import issue11_baseline as issue11
+def test_internal_baseline_runner_rejects_missing_dataset_config(tmp_path: Path) -> None:
+    from ecg_shift_bench.training import internal_dataset_baseline as baseline
 
     config = {
-        "experiment": "issue11-internal-resnet1d-baseline",
+        "experiment": "resnet1d-internal-dataset-baseline",
         "method": "source_only",
         "source_datasets": ["PTBXL", "CODE15", "CHAPMAN", "SPH"],
         "target_datasets": [],
@@ -189,15 +191,15 @@ def test_issue11_runner_rejects_missing_dataset_config(tmp_path: Path) -> None:
             "amp": False,
         },
         "evaluation": {"selection_metric": "validation_macro_auprc", "metrics": []},
-        "issue11": {"output_root": str(tmp_path / "outputs"), "datasets": {}},
+        "baseline_results": {"output_root": str(tmp_path / "outputs"), "datasets": {}},
     }
 
     try:
-        issue11.run_issue11_baseline(
+        baseline.run_internal_dataset_baseline(
             experiment_config=config,
-            experiment_config_path=tmp_path / "issue11.yaml",
+            experiment_config_path=tmp_path / "baseline.yaml",
             requested_device="cpu",
-            command="python scripts/train.py --config issue11.yaml",
+            command="python scripts/train.py --config baseline.yaml",
         )
     except ValueError as error:
         assert "dataset" in str(error).lower()

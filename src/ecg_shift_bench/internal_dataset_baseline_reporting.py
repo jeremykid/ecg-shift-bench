@@ -1,4 +1,4 @@
-"""Issue 11 result-page helpers built from saved summary tables."""
+"""Result-page helpers for the internal supervised baseline."""
 
 from __future__ import annotations
 
@@ -69,9 +69,9 @@ def _write_summary_readme(
     ]
     per_class_columns = ["dataset", "split", "label", "auroc", "auprc", "support"]
     readme_lines = [
-        "# Issue 11 Internal Baseline Results",
+        "# ResNet1D Internal Dataset Baseline Results",
         "",
-        "This folder contains the saved evaluation tables and figures for the issue 11 internal supervised baseline.",
+        "This folder contains the saved evaluation tables and figures for the internal supervised baseline.",
         "",
         "## Overall summary",
         "",
@@ -83,18 +83,18 @@ def _write_summary_readme(
         "",
         "## Figures",
         "",
-        f"![Overall metrics]({Path(figure_paths['issue11_overall_metrics_png']).name})",
+        f"![Overall metrics]({Path(figure_paths['overall_metrics_png']).name})",
         "",
-        f"![Per-label metrics]({Path(figure_paths['issue11_per_label_metrics_png']).name})",
+        f"![Per-label metrics]({Path(figure_paths['per_label_metrics_png']).name})",
         "",
         "## Files",
         "",
         "- `results_summary.csv`",
         "- `per_class_summary.csv`",
-        "- `issue11_overall_metrics.png`",
-        "- `issue11_overall_metrics.svg`",
-        "- `issue11_per_label_metrics.png`",
-        "- `issue11_per_label_metrics.svg`",
+        "- `resnet1d_internal_dataset_baseline_overall_metrics.png`",
+        "- `resnet1d_internal_dataset_baseline_overall_metrics.svg`",
+        "- `resnet1d_internal_dataset_baseline_per_label_metrics.png`",
+        "- `resnet1d_internal_dataset_baseline_per_label_metrics.svg`",
     ]
     readme_path.write_text("\n".join(readme_lines).rstrip() + "\n", encoding="utf-8")
     return readme_path
@@ -127,13 +127,13 @@ def _overall_summary_figure(summary: pd.DataFrame, output_dir: Path) -> dict[str
         for index, value in enumerate(values):
             if np.isfinite(value):
                 axis.text(index, value + 0.015, f"{value:.3f}", ha="center", va="bottom", fontsize=8)
-    fig.suptitle("Issue 11 test-split summary metrics", fontsize=14)
+    fig.suptitle("Internal baseline test-split summary metrics", fontsize=14)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
-    paths = _save_figure(fig, output_dir, "issue11_overall_metrics")
+    paths = _save_figure(fig, output_dir, "resnet1d_internal_dataset_baseline_overall_metrics")
     plt.close(fig)
     return {
-        "issue11_overall_metrics_png": paths["png"],
-        "issue11_overall_metrics_svg": paths["svg"],
+        "overall_metrics_png": paths["png"],
+        "overall_metrics_svg": paths["svg"],
     }
 
 
@@ -208,17 +208,17 @@ def _per_label_summary_figure(per_class: pd.DataFrame, output_dir: Path) -> dict
         ax=axes[1],
     )
     fig.colorbar(heatmap0, ax=axes, shrink=0.85, label="Score")
-    fig.suptitle("Issue 11 per-label test-split metrics", fontsize=14)
-    paths = _save_figure(fig, output_dir, "issue11_per_label_metrics")
+    fig.suptitle("Internal baseline per-label test-split metrics", fontsize=14)
+    paths = _save_figure(fig, output_dir, "resnet1d_internal_dataset_baseline_per_label_metrics")
     plt.close(fig)
     return {
-        "issue11_per_label_metrics_png": paths["png"],
-        "issue11_per_label_metrics_svg": paths["svg"],
+        "per_label_metrics_png": paths["png"],
+        "per_label_metrics_svg": paths["svg"],
     }
 
 
-def write_issue11_result_figures(output_root: str | Path) -> dict[str, str]:
-    """Create issue-11 result figures and a markdown summary from saved tables."""
+def write_internal_dataset_baseline_result_figures(output_root: str | Path) -> dict[str, str]:
+    """Create result figures and a markdown summary from saved tables."""
     output_dir = Path(output_root).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(output_dir / ".mplconfig"))
@@ -243,7 +243,7 @@ def write_issue11_result_figures(output_root: str | Path) -> dict[str, str]:
     figure_paths: dict[str, str] = {}
     figure_paths.update(_overall_summary_figure(summary, output_dir))
     figure_paths.update(_per_label_summary_figure(per_class, output_dir))
-    figure_paths["issue11_readme"] = str(
+    figure_paths["readme"] = str(
         _write_summary_readme(
             output_dir=output_dir,
             summary=summary,

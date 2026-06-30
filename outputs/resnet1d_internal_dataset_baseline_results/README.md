@@ -1,6 +1,6 @@
-# Issue 11 Internal Baseline Results
+# ResNet1D Internal Dataset Baseline Results
 
-This folder contains the saved evaluation tables and figures for the issue 11 internal supervised baseline.
+This folder contains the saved evaluation tables and figures for the internal supervised baseline.
 
 ## Overall summary
 
@@ -66,15 +66,15 @@ This folder contains the saved evaluation tables and figures for the issue 11 in
 
 ## Figures
 
-![Overall metrics](issue11_overall_metrics.png)
+![Overall metrics](resnet1d_internal_dataset_baseline_overall_metrics.png)
 
-![Per-label metrics](issue11_per_label_metrics.png)
+![Per-label metrics](resnet1d_internal_dataset_baseline_per_label_metrics.png)
 
 ## Files
 
 - `results_summary.csv`
 - `per_class_summary.csv`
-- `issue11_overall_metrics.png`
-- `issue11_overall_metrics.svg`
-- `issue11_per_label_metrics.png`
-- `issue11_per_label_metrics.svg`
+- `resnet1d_internal_dataset_baseline_overall_metrics.png`
+- `resnet1d_internal_dataset_baseline_overall_metrics.svg`
+- `resnet1d_internal_dataset_baseline_per_label_metrics.png`
+- `resnet1d_internal_dataset_baseline_per_label_metrics.svg`
