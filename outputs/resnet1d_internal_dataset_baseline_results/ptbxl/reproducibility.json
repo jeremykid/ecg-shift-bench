@@ -1,0 +1,45 @@
+{
+  "dataset": "ptbxl",
+  "dataset_config_path": "/tmp/ecg-shift-bench-issue11/configs/datasets/ptbxl.yaml",
+  "dataset_name": "ptbxl",
+  "evaluation": {
+    "metrics": [
+      "macro_auroc",
+      "micro_auroc",
+      "macro_auprc",
+      "micro_auprc",
+      "per_label_auroc",
+      "per_label_auprc",
+      "per_label_support"
+    ],
+    "selection_metric": "validation_macro_auprc"
+  },
+  "model": {
+    "in_channels": 12,
+    "name": "resnet1d",
+    "num_labels": 6,
+    "width": 32
+  },
+  "preprocessing": {
+    "input_length": 5000,
+    "target_length": 5000,
+    "target_sampling_rate": 500,
+    "unit": "mV"
+  },
+  "records": {
+    "test": 2198,
+    "train": 17418,
+    "validation": 2183
+  },
+  "split_manifest_path": "/tmp/ecg-shift-bench-issue11/outputs/dataset_statistics/ptbxl/split_manifest.csv",
+  "split_manifest_sha256": "bb32c92dad3f98f383cbf843f8a4d6eee26ed56bf39742f3edb9f6fbb9157ff0",
+  "training": {
+    "batch_size": 64,
+    "epochs": 5,
+    "learning_rate": 0.001,
+    "optimizer": "adamw",
+    "seed": 42,
+    "weight_decay": 0.0001,
+    "workers": 0
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "amp_fp16": false,
+  "artifact_paths": {
+    "checkpoint": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/code15/best_checkpoint.pt",
+    "dataset_config": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/code15/dataset_config.yaml",
+    "experiment_config": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/code15/experiment_config.yaml",
+    "history": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/code15/history.json",
+    "reproducibility": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/code15/reproducibility.json",
+    "split_manifest": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/code15/split_manifest.csv",
+    "test_metrics": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/code15/test_metrics.json",
+    "validation_metrics": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/code15/validation_metrics.json"
+  },
+  "command": "/home/shuo19/ecg-shift-bench/.venv/bin/python scripts/train.py --config /tmp/ecg-shift-bench-issue11/.tmp_resnet1d_internal_dataset_baseline.yaml",
+  "dataset": "code15",
+  "dataset_name": "code15",
+  "device_name": "CPU",
+  "experiment_id": "resnet1d-internal-dataset-baseline",
+  "finished_at": null,
+  "git_commit": "b8f4300ac1ef41e55b9ac18ff05efd73711870fd",
+  "git_dirty": true,
+  "preflight": {
+    "loss": 0.6765617728233337,
+    "status": "passed"
+  },
+  "requested_device": "cpu",
+  "resolved_device": "cpu",
+  "seed": 42,
+  "selection_metric": "validation_macro_auprc",
+  "started_at": "2026-06-30T14:58:35.942331+00:00",
+  "status": "running"
+}

@@ -1,0 +1,18 @@
+name: CODE15
+root: /data/padmalab_external/special_project/code_15
+metadata_file: exams.csv
+records_root: .
+sampling_rate: 400
+target_sampling_rate: 500
+target_length: 5000
+source_unit: mV
+target_unit: mV
+lead_order: [I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6]
+signal_format: hdf5
+signal_dataset: tracings
+signal_layout: samples_leads
+trace_file_column: trace_file
+record_id_column: exam_id
+patient_id_column: patient_id
+label_columns: [AF, RBBB, LBBB, 1dAVb, SB, ST]
+domain: code15_brazil

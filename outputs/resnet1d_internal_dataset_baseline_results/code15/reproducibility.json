@@ -1,0 +1,45 @@
+{
+  "dataset": "code15",
+  "dataset_config_path": "/tmp/ecg-shift-bench-issue11/configs/datasets/code15.yaml",
+  "dataset_name": "code15",
+  "evaluation": {
+    "metrics": [
+      "macro_auroc",
+      "micro_auroc",
+      "macro_auprc",
+      "micro_auprc",
+      "per_label_auroc",
+      "per_label_auprc",
+      "per_label_support"
+    ],
+    "selection_metric": "validation_macro_auprc"
+  },
+  "model": {
+    "in_channels": 12,
+    "name": "resnet1d",
+    "num_labels": 6,
+    "width": 32
+  },
+  "preprocessing": {
+    "input_length": 5000,
+    "target_length": 5000,
+    "target_sampling_rate": 500,
+    "unit": "mV"
+  },
+  "records": {
+    "test": 69260,
+    "train": 241957,
+    "validation": 34562
+  },
+  "split_manifest_path": "/tmp/ecg-shift-bench-issue11/outputs/dataset_statistics/code15/split_manifest.csv",
+  "split_manifest_sha256": "337968a669d21a0c73938a3af8af190b026f65277410874fc341a4e80f15d248",
+  "training": {
+    "batch_size": 64,
+    "epochs": 5,
+    "learning_rate": 0.001,
+    "optimizer": "adamw",
+    "seed": 42,
+    "weight_decay": 0.0001,
+    "workers": 0
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "amp_fp16": false,
+  "artifact_paths": {
+    "checkpoint": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/ptbxl/best_checkpoint.pt",
+    "dataset_config": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/ptbxl/dataset_config.yaml",
+    "experiment_config": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/ptbxl/experiment_config.yaml",
+    "history": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/ptbxl/history.json",
+    "reproducibility": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/ptbxl/reproducibility.json",
+    "split_manifest": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/ptbxl/split_manifest.csv",
+    "test_metrics": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/ptbxl/test_metrics.json",
+    "validation_metrics": "/tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/ptbxl/validation_metrics.json"
+  },
+  "best_epoch": 5,
+  "best_validation_macro_auprc": 0.6984766644360771,
+  "command": "/home/shuo19/ecg-shift-bench/.venv/bin/python scripts/train.py --config /tmp/ecg-shift-bench-issue11/.tmp_resnet1d_internal_dataset_baseline.yaml",
+  "dataset": "ptbxl",
+  "dataset_name": "ptbxl",
+  "device_name": "CPU",
+  "experiment_id": "resnet1d-internal-dataset-baseline",
+  "finished_at": "2026-06-30T14:58:35.620225+00:00",
+  "git_commit": "b8f4300ac1ef41e55b9ac18ff05efd73711870fd",
+  "git_dirty": true,
+  "preflight": {
+    "loss": 0.6702221035957336,
+    "status": "passed"
+  },
+  "requested_device": "cpu",
+  "resolved_device": "cpu",
+  "seed": 42,
+  "selection_metric": "validation_macro_auprc",
+  "started_at": "2026-06-30T14:39:58.335605+00:00",
+  "status": "completed"
+}
