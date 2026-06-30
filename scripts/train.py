@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from ecg_shift_bench.models.resnet1d import ResNet1D
 from ecg_shift_bench.training.internal_dataset_baseline import (
+    rebuild_internal_dataset_baseline_results,
     run_internal_dataset_baseline,
 )
 from ecg_shift_bench.training.optim import create_optimizer
@@ -31,7 +32,7 @@ def main() -> None:
     parser.add_argument("--config", required=True)
     parser.add_argument("--dataset-config", help="Dataset YAML for a real-data run")
     parser.add_argument("--root", help="Local dataset release root (never copied into config)")
-    parser.add_argument("--device", default="cpu", help="Torch device, for example cuda:0")
+    parser.add_argument("--device", default="cuda:0", help="Torch device, for example cuda:0")
     parser.add_argument("--output-dir", help="Artifact directory for a real-data run")
     parser.add_argument(
         "--snapshot-manifest",
@@ -41,6 +42,10 @@ def main() -> None:
         "--preflight-only",
         action="store_true",
         help="Validate the snapshot and run one real forward/backward batch, then stop",
+    )
+    parser.add_argument(
+        "--rebuild-results-from",
+        help="Rebuild issue 11 results from an already completed run root without retraining",
     )
     parser.add_argument("--smoke-test", action="store_true", help="Run one tiny synthetic epoch")
     args = parser.parse_args()
@@ -53,6 +58,25 @@ def main() -> None:
     print(f"Validated experiment: {config.get('experiment', 'unnamed')}")
     if args.smoke_test:
         run_smoke_test(config)
+        return
+    if args.rebuild_results_from:
+        output_root = (
+            Path(args.output_dir).expanduser().resolve()
+            if args.output_dir
+            else Path(
+                config.get("baseline_results", {}).get(
+                    "output_root", "outputs/resnet1d_internal_dataset_baseline_results"
+                )
+            ).expanduser().resolve()
+        )
+        command = shlex.join([sys.executable, *sys.argv])
+        status = rebuild_internal_dataset_baseline_results(
+            source_root=Path(args.rebuild_results_from).expanduser().resolve(),
+            output_root=output_root,
+            requested_device=args.device,
+            command=command,
+        )
+        print(f"Run status: {status['status']}")
         return
     if config.get("experiment") == "resnet1d-internal-dataset-baseline":
         command = shlex.join([sys.executable, *sys.argv])
