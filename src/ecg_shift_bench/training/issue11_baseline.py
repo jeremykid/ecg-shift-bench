@@ -434,7 +434,9 @@ def run_issue11_baseline(
     output_root = (
         Path(output_root_override).expanduser().resolve()
         if output_root_override is not None
-        else Path(issue11_config.get("output_root", "outputs/issue-11")).expanduser().resolve()
+        else Path(
+            issue11_config.get("output_root", "outputs/issue11_internal_baseline_results")
+        ).expanduser().resolve()
     )
     output_root.mkdir(parents=True, exist_ok=True)
     root_status_path = output_root / "run_status.json"
@@ -477,7 +479,7 @@ def run_issue11_baseline(
                 {
                     "dataset": dataset_key,
                     "dataset_name": result["dataset_name"],
-                    "output_dir": result["output_dir"],
+                    "output_dir": str(Path(issue11_config.get("output_root", "outputs/issue11_internal_baseline_results")) / dataset_key),
                     "train_records": result["split_counts"]["train"],
                     "validation_records": result["split_counts"]["validation"],
                     "test_records": result["split_counts"]["test"],

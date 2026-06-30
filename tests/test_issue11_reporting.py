@@ -102,7 +102,7 @@ def _write_issue11_summaries(output_root: Path) -> None:
 
 
 def test_issue11_result_figures_are_written_from_saved_summaries(tmp_path: Path) -> None:
-    output_root = tmp_path / "outputs" / "issue-11"
+    output_root = tmp_path / "outputs" / "issue11_internal_baseline_results"
     output_root.mkdir(parents=True)
     _write_issue11_summaries(output_root)
 
@@ -113,6 +113,7 @@ def test_issue11_result_figures_are_written_from_saved_summaries(tmp_path: Path)
         "issue11_overall_metrics_svg",
         "issue11_per_label_metrics_png",
         "issue11_per_label_metrics_svg",
+        "issue11_readme",
     }
     assert set(figure_paths) == expected_keys
     for path_text in figure_paths.values():

@@ -157,6 +157,7 @@ def test_issue11_run_writes_per_dataset_outputs_and_summary(tmp_path: Path, monk
     output_root = Path(experiment_config["issue11"]["output_root"])
     assert (output_root / "results_summary.csv").is_file()
     assert (output_root / "per_class_summary.csv").is_file()
+    assert (output_root / "README.md").is_file()
     for name in datasets:
         dataset_output = output_root / name
         assert (dataset_output / "run_status.json").is_file()

@@ -34,6 +34,6 @@ experiments:
       - select_by_validation_macro_auprc
       - evaluate_internal_test_split
       - write_result_tables
-    artifact_root: outputs/issue-11
-    model_artifact: outputs/issue-11/<dataset>/best_checkpoint.pt
-    runtime_status: outputs/issue-11/run_status.json
+    artifact_root: outputs/issue11_internal_baseline_results
+    model_artifact: outputs/issue11_internal_baseline_results/<dataset>/best_checkpoint.pt
+    runtime_status: outputs/issue11_internal_baseline_results/run_status.json

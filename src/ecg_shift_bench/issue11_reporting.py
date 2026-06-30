@@ -1,4 +1,4 @@
-"""Issue 11 result-figure helpers built from saved summary tables."""
+"""Issue 11 result-page helpers built from saved summary tables."""
 
 from __future__ import annotations
 
@@ -25,6 +25,79 @@ def _save_figure(fig, output_dir: Path, stem: str) -> dict[str, str]:
     fig.savefig(png_path, dpi=200, bbox_inches="tight")
     fig.savefig(svg_path, bbox_inches="tight")
     return {"png": str(png_path), "svg": str(svg_path)}
+
+
+def _format_value(value: object, *, precision: int = 3) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (float, np.floating)):
+        if np.isnan(value):
+            return "n/a"
+        return f"{float(value):.{precision}f}"
+    if isinstance(value, (int, np.integer)):
+        return str(int(value))
+    return str(value)
+
+
+def _markdown_table(frame: pd.DataFrame, columns: list[str]) -> str:
+    rows = frame.loc[:, columns].copy()
+    header = "| " + " | ".join(columns) + " |"
+    separator = "| " + " | ".join(["---"] * len(columns)) + " |"
+    body = []
+    for _, row in rows.iterrows():
+        body.append("| " + " | ".join(_format_value(row[column]) for column in columns) + " |")
+    return "\n".join([header, separator, *body])
+
+
+def _write_summary_readme(
+    *,
+    output_dir: Path,
+    summary: pd.DataFrame,
+    per_class: pd.DataFrame,
+    figure_paths: dict[str, str],
+) -> Path:
+    readme_path = output_dir / "README.md"
+    summary_columns = [
+        "dataset",
+        "dataset_name",
+        "best_epoch",
+        "validation_macro_auprc",
+        "test_macro_auroc",
+        "test_micro_auroc",
+        "test_macro_auprc",
+        "test_micro_auprc",
+    ]
+    per_class_columns = ["dataset", "split", "label", "auroc", "auprc", "support"]
+    readme_lines = [
+        "# Issue 11 Internal Baseline Results",
+        "",
+        "This folder contains the saved evaluation tables and figures for the issue 11 internal supervised baseline.",
+        "",
+        "## Overall summary",
+        "",
+        _markdown_table(summary, summary_columns),
+        "",
+        "## Per-label metrics",
+        "",
+        _markdown_table(per_class, per_class_columns),
+        "",
+        "## Figures",
+        "",
+        f"![Overall metrics]({Path(figure_paths['issue11_overall_metrics_png']).name})",
+        "",
+        f"![Per-label metrics]({Path(figure_paths['issue11_per_label_metrics_png']).name})",
+        "",
+        "## Files",
+        "",
+        "- `results_summary.csv`",
+        "- `per_class_summary.csv`",
+        "- `issue11_overall_metrics.png`",
+        "- `issue11_overall_metrics.svg`",
+        "- `issue11_per_label_metrics.png`",
+        "- `issue11_per_label_metrics.svg`",
+    ]
+    readme_path.write_text("\n".join(readme_lines).rstrip() + "\n", encoding="utf-8")
+    return readme_path
 
 
 def _overall_summary_figure(summary: pd.DataFrame, output_dir: Path) -> dict[str, str]:
@@ -145,7 +218,7 @@ def _per_label_summary_figure(per_class: pd.DataFrame, output_dir: Path) -> dict
 
 
 def write_issue11_result_figures(output_root: str | Path) -> dict[str, str]:
-    """Create issue-11 result figures from saved summary CSVs."""
+    """Create issue-11 result figures and a markdown summary from saved tables."""
     output_dir = Path(output_root).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(output_dir / ".mplconfig"))
@@ -170,4 +243,12 @@ def write_issue11_result_figures(output_root: str | Path) -> dict[str, str]:
     figure_paths: dict[str, str] = {}
     figure_paths.update(_overall_summary_figure(summary, output_dir))
     figure_paths.update(_per_label_summary_figure(per_class, output_dir))
+    figure_paths["issue11_readme"] = str(
+        _write_summary_readme(
+            output_dir=output_dir,
+            summary=summary,
+            per_class=per_class,
+            figure_paths=figure_paths,
+        )
+    )
     return figure_paths
