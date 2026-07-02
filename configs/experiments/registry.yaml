@@ -1,4 +1,17 @@
 experiments:
+  source-only-cross-domain-ptbxl-to-chapman:
+    status: planned
+    config: configs/experiments/source_only.yaml
+    workflow_dag:
+      - load_source_dataset_config
+      - load_target_dataset_config
+      - train_source_only_model
+      - select_by_source_validation_macro_auprc
+      - reload_best_checkpoint
+      - evaluate_source_train_validation_and_target_test
+    artifact_root: outputs/source-only-cross-domain/ptbxl_to_chapman
+    model_artifact: outputs/source-only-cross-domain/ptbxl_to_chapman/best_checkpoint.pt
+    runtime_status: outputs/source-only-cross-domain/ptbxl_to_chapman/run_status.json
   ptbxl-source-only-resnet1d-wang-500hz-e1-seed42:
     status: completed
     config: configs/experiments/ptbxl_source_only_resnet1d_wang_e1.yaml

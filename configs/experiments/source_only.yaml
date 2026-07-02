@@ -2,20 +2,48 @@ experiment: source_only_ptbxl_to_chapman
 method: source_only
 source_datasets: [PTBXL]
 target_datasets: [CHAPMAN]
+dataset_configs:
+  source: configs/datasets/ptbxl.yaml
+  target: configs/datasets/chapman.yaml
 canonical_labels: [AF, RBBB, LBBB, 1dAVB, SB, ST]
 model:
   name: resnet1d
+  in_channels: 12
+  width: 32
+data:
   input_length: 5000
-  sampling_rate: 500
+  normalization: none
+preprocessing_version: shared_alignment_v1
 training:
-  batch_size: 64
   epochs: 30
+  batch_size: 64
+  workers: 8
   optimizer: adamw
   learning_rate: 0.001
   weight_decay: 0.0001
+  loss: unweighted_bce_with_logits
+  scheduler: none
   seed: 42
+  amp: false
 evaluation:
-  metrics: [macro_auroc, micro_auroc, macro_auprc, micro_auprc, domain_gap]
-  threshold: 0.5
+  selection_metric: source_validation_macro_auprc
+  metrics:
+    - macro_accuracy
+    - macro_auroc
+    - macro_auprc
+    - macro_f1_score
+    - macro_prec
+    - macro_rec
+    - macro_sensitivity
+    - macro_spec
+    - macro_aprec
+    - macro_br_score
+    - score_macro_auroc
+    - score_micro_auroc
+    - score_macro_auprc
+    - score_micro_auprc
 protocol:
+  source_labels_available_during_training: true
   target_labels_available_during_training: false
+  target_unlabeled_data_available_during_training: false
+  model_updates_during_testing: false
