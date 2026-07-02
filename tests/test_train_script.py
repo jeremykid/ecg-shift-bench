@@ -19,7 +19,9 @@ def _load_script_module():
     return module
 
 
-def test_cli_defaults_to_cuda_zero_for_issue11_run(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_defaults_to_cuda_zero_for_internal_baseline_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     script = _load_script_module()
     captured: dict[str, object] = {}
 
@@ -63,4 +65,3 @@ def test_cli_defaults_to_cuda_zero_for_issue11_run(monkeypatch: pytest.MonkeyPat
     script.main()
 
     assert captured["requested_device"] == "cuda:0"
-

@@ -15,7 +15,7 @@ def _write_summaries(output_root: Path) -> None:
             {
                 "dataset": "ptbxl",
                 "dataset_name": "PTBXL",
-                "output_dir": str(output_root / "ptbxl"),
+                "output_dir": "ptbxl",
                 "train_records": 10,
                 "validation_records": 2,
                 "test_records": 2,
@@ -53,7 +53,7 @@ def _write_summaries(output_root: Path) -> None:
             {
                 "dataset": "code15",
                 "dataset_name": "CODE15",
-                "output_dir": str(output_root / "code15"),
+                "output_dir": "code15",
                 "train_records": 10,
                 "validation_records": 2,
                 "test_records": 2,
@@ -91,7 +91,7 @@ def _write_summaries(output_root: Path) -> None:
             {
                 "dataset": "chapman",
                 "dataset_name": "CHAPMAN",
-                "output_dir": str(output_root / "chapman"),
+                "output_dir": "chapman",
                 "train_records": 10,
                 "validation_records": 2,
                 "test_records": 2,
@@ -129,7 +129,7 @@ def _write_summaries(output_root: Path) -> None:
             {
                 "dataset": "sph",
                 "dataset_name": "SPH",
-                "output_dir": str(output_root / "sph"),
+                "output_dir": "sph",
                 "train_records": 10,
                 "validation_records": 2,
                 "test_records": 2,
@@ -256,7 +256,7 @@ def _write_predictions(output_root: Path) -> None:
     for dataset in ("ptbxl", "code15", "chapman", "sph"):
         dataset_dir = output_root / dataset
         dataset_dir.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(dataset_dir / "issue11_predictions.npz", **payload)
+        np.savez_compressed(dataset_dir / "internal_baseline_predictions.npz", **payload)
 
 
 def test_result_figures_are_written_from_saved_summaries(tmp_path: Path) -> None:
@@ -275,9 +275,10 @@ def test_result_figures_are_written_from_saved_summaries(tmp_path: Path) -> None
     }
     assert set(figure_paths) == expected_keys
     for path_text in figure_paths.values():
-        path = Path(path_text)
+        path = output_root / path_text
         assert path.is_file()
         assert path.stat().st_size > 0
+        assert not Path(path_text).is_absolute()
 
     readme = (output_root / "README.md").read_text(encoding="utf-8")
     assert "generate_report.py" in readme
@@ -296,8 +297,9 @@ def test_result_figures_include_source_script_reports_when_predictions_exist(
     assert "ptbxl_validation_report_json" in figure_paths
     assert "ptbxl_validation_report_curves_png" in figure_paths
     assert "ptbxl_validation_report_aux_png" in figure_paths
-    assert Path(figure_paths["ptbxl_validation_report_json"]).is_file()
-    assert Path(figure_paths["ptbxl_validation_report_curves_png"]).is_file()
-    assert Path(figure_paths["ptbxl_validation_report_aux_png"]).is_file()
+    assert (output_root / figure_paths["ptbxl_validation_report_json"]).is_file()
+    assert (output_root / figure_paths["ptbxl_validation_report_curves_png"]).is_file()
+    assert (output_root / figure_paths["ptbxl_validation_report_aux_png"]).is_file()
+    assert not Path(figure_paths["ptbxl_validation_report_json"]).is_absolute()
     readme = (output_root / "README.md").read_text(encoding="utf-8")
     assert "Source-script parity reports" in readme

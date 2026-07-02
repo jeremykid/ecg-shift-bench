@@ -38,9 +38,11 @@ from ecg_shift_bench.training.ptbxl_baseline import (
 from ecg_shift_bench.utils.config import load_yaml
 from ecg_shift_bench.utils.seed import seed_everything
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
 
 @dataclass(frozen=True)
-class Issue11Run:
+class InternalBaselineRun:
     """Resolved paths and dataset settings for one internal baseline run."""
 
     dataset_key: str
@@ -51,8 +53,8 @@ class Issue11Run:
 
 
 @dataclass(frozen=True)
-class Issue11CompletedRun:
-    """Resolved paths for rebuilding results from a completed issue 11 run."""
+class InternalBaselineCompletedRun:
+    """Resolved paths for rebuilding results from a completed run."""
 
     dataset_key: str
     dataset_name: str
@@ -68,6 +70,14 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _display_path(path: Path) -> str:
+    resolved = path.expanduser().resolve()
+    try:
+        return str(resolved.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(resolved)
+
+
 def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -76,7 +86,7 @@ def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
-class Issue11ClassificationDataset(Dataset[tuple[Tensor, Tensor]]):
+class InternalBaselineClassificationDataset(Dataset[tuple[Tensor, Tensor]]):
     """Load aligned waveforms and canonical multilabel targets."""
 
     def __init__(
@@ -190,21 +200,31 @@ def _collect_predictions(
     return np.concatenate(targets_all), np.concatenate(scores_all)
 
 
-def _artifact_paths(output_dir: Path) -> dict[str, str]:
+def _artifact_paths(output_dir: Path) -> dict[str, Path]:
     return {
-        "experiment_config": str(output_dir / "experiment_config.yaml"),
-        "dataset_config": str(output_dir / "dataset_config.yaml"),
-        "split_manifest": str(output_dir / "split_manifest.csv"),
-        "reproducibility": str(output_dir / "reproducibility.json"),
-        "history": str(output_dir / "history.json"),
-        "checkpoint": str(output_dir / "best_checkpoint.pt"),
-        "predictions": str(output_dir / "issue11_predictions.npz"),
-        "validation_metrics": str(output_dir / "validation_metrics.json"),
-        "test_metrics": str(output_dir / "test_metrics.json"),
+        "experiment_config": output_dir / "experiment_config.yaml",
+        "dataset_config": output_dir / "dataset_config.yaml",
+        "split_manifest": output_dir / "split_manifest.csv",
+        "reproducibility": output_dir / "reproducibility.json",
+        "history": output_dir / "history.json",
+        "checkpoint": output_dir / "best_checkpoint.pt",
+        "predictions": output_dir / "internal_baseline_predictions.npz",
+        "validation_metrics": output_dir / "validation_metrics.json",
+        "test_metrics": output_dir / "test_metrics.json",
     }
 
 
-def _save_issue11_predictions(
+def _public_artifact_paths(artifact_paths: dict[str, Path], *, base_dir: Path) -> dict[str, str]:
+    public_paths: dict[str, str] = {}
+    for name, path in artifact_paths.items():
+        try:
+            public_paths[name] = str(path.relative_to(base_dir))
+        except ValueError:
+            public_paths[name] = str(path)
+    return public_paths
+
+
+def _save_internal_baseline_predictions(
     *,
     output_dir: Path,
     split_predictions: dict[str, tuple[np.ndarray, np.ndarray]],
@@ -215,7 +235,7 @@ def _save_issue11_predictions(
     for split_name, (truth, scores) in split_predictions.items():
         payload[f"{split_name}_y_true"] = np.asarray(truth)
         payload[f"{split_name}_y_score"] = np.asarray(scores)
-    path = output_dir / "issue11_predictions.npz"
+    path = output_dir / "internal_baseline_predictions.npz"
     np.savez_compressed(path, **payload)
     return path
 
@@ -224,8 +244,8 @@ def _copy_text_config(source: Path, destination: Path) -> None:
     destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
 
-def _resolve_dataset_run(dataset_key: str, dataset_run: dict[str, Any], output_root: Path) -> Issue11Run:
-    return Issue11Run(
+def _resolve_dataset_run(dataset_key: str, dataset_run: dict[str, Any], output_root: Path) -> InternalBaselineRun:
+    return InternalBaselineRun(
         dataset_key=dataset_key,
         dataset_name=str(dataset_run["dataset"]),
         dataset_config_path=Path(dataset_run["dataset_config"]).expanduser().resolve(),
@@ -241,7 +261,9 @@ def _resolve_artifact_path(path_value: str | Path, *, base_dir: Path) -> Path:
     return (base_dir / path).resolve()
 
 
-def _load_completed_issue11_run(source_root: Path, dataset_key: str, output_root: Path) -> Issue11CompletedRun:
+def _load_completed_internal_baseline_run(
+    source_root: Path, dataset_key: str, output_root: Path
+) -> InternalBaselineCompletedRun:
     source_output_dir = source_root / dataset_key
     status_path = source_output_dir / "run_status.json"
     if not status_path.is_file():
@@ -251,7 +273,7 @@ def _load_completed_issue11_run(source_root: Path, dataset_key: str, output_root
     artifact_paths = dataset_status.get("artifact_paths", {})
     if not artifact_paths:
         raise ValueError(f"Completed run status for {dataset_key!r} does not include artifact paths")
-    return Issue11CompletedRun(
+    return InternalBaselineCompletedRun(
         dataset_key=dataset_key,
         dataset_name=str(dataset_status.get("dataset_name", dataset_key)),
         source_output_dir=source_output_dir,
@@ -267,7 +289,7 @@ def _load_completed_issue11_run(source_root: Path, dataset_key: str, output_root
 
 def _build_reproducibility_note(
     *,
-    run: Issue11Run,
+    run: InternalBaselineRun,
     experiment_config: dict[str, Any],
     dataset_config: dict[str, Any],
     split_manifest: pd.DataFrame,
@@ -278,9 +300,9 @@ def _build_reproducibility_note(
     return {
         "dataset": run.dataset_key,
         "dataset_name": run.dataset_name,
-        "split_manifest_path": str(run.split_manifest_path),
+        "split_manifest_path": _display_path(run.split_manifest_path),
         "split_manifest_sha256": _sha256_file(run.split_manifest_path),
-        "dataset_config_path": str(run.dataset_config_path),
+        "dataset_config_path": _display_path(run.dataset_config_path),
         "records": {
             "train": int((split_manifest["split"] == "train").sum()),
             "validation": int((split_manifest["split"] == "validation").sum()),
@@ -335,7 +357,7 @@ def _load_model_checkpoint(
     return model, checkpoint
 
 
-def _make_issue11_loaders(
+def _make_internal_baseline_loaders(
     *,
     dataset: BaseECGDataset,
     splits: dict[str, pd.DataFrame],
@@ -347,7 +369,7 @@ def _make_issue11_loaders(
     shuffle_train: bool,
 ) -> dict[str, DataLoader[tuple[Tensor, Tensor]]]:
     datasets = {
-        split_name: Issue11ClassificationDataset(dataset, frame, input_length)
+        split_name: InternalBaselineClassificationDataset(dataset, frame, input_length)
         for split_name, frame in splits.items()
     }
     return {
@@ -363,7 +385,7 @@ def _make_issue11_loaders(
     }
 
 
-def _evaluate_issue11_splits(
+def _evaluate_internal_baseline_splits(
     *,
     model: nn.Module,
     loaders: dict[str, DataLoader[tuple[Tensor, Tensor]]],
@@ -383,11 +405,11 @@ def _evaluate_issue11_splits(
     return split_predictions
 
 
-def _summarize_issue11_predictions(
+def _summarize_internal_baseline_predictions(
     *,
     dataset_key: str,
     dataset_name: str,
-    output_dir: Path,
+    output_dir_label: str,
     split_counts: dict[str, int],
     best_epoch: int,
     best_validation_macro_auprc: float,
@@ -424,7 +446,7 @@ def _summarize_issue11_predictions(
     summary_row = {
         "dataset": dataset_key,
         "dataset_name": dataset_name,
-        "output_dir": str(output_dir),
+        "output_dir": output_dir_label,
         "train_records": int(split_counts["train"]),
         "validation_records": int(split_counts["validation"]),
         "test_records": int(split_counts["test"]),
@@ -494,9 +516,9 @@ def _finalize_internal_dataset_baseline_outputs(
         "started_at": None,
         "finished_at": _utc_now(),
         "artifact_paths": {
-            "results_summary": str(output_root / "results_summary.csv"),
-            "per_class_summary": str(output_root / "per_class_summary.csv"),
-            "run_status": str(output_root / "run_status.json"),
+            "results_summary": "results_summary.csv",
+            "per_class_summary": "per_class_summary.csv",
+            "run_status": "run_status.json",
             **figure_paths,
         },
         "completed_datasets": [run["dataset"] for run in completed_runs],
@@ -507,7 +529,7 @@ def _finalize_internal_dataset_baseline_outputs(
 
 def _run_single_dataset(
     *,
-    run: Issue11Run,
+    run: InternalBaselineRun,
     experiment_config: dict[str, Any],
     experiment_config_path: Path,
     requested_device: str,
@@ -536,13 +558,13 @@ def _run_single_dataset(
         "requested_device": requested_device,
         "started_at": _utc_now(),
         "finished_at": None,
-        "artifact_paths": artifact_paths,
+        "artifact_paths": _public_artifact_paths(artifact_paths, base_dir=run.output_dir),
         "selection_metric": experiment_config["evaluation"]["selection_metric"],
     }
     write_json(status_path, status)
 
-    _copy_text_config(experiment_config_path, Path(artifact_paths["experiment_config"]))
-    _copy_text_config(run.dataset_config_path, Path(artifact_paths["dataset_config"]))
+    _copy_text_config(experiment_config_path, artifact_paths["experiment_config"])
+    _copy_text_config(run.dataset_config_path, artifact_paths["dataset_config"])
     split_manifest.to_csv(artifact_paths["split_manifest"], index=False)
 
     reproducibility = _build_reproducibility_note(
@@ -551,7 +573,7 @@ def _run_single_dataset(
         dataset_config=dataset_config,
         split_manifest=split_manifest,
     )
-    write_json(Path(artifact_paths["reproducibility"]), reproducibility)
+    write_json(artifact_paths["reproducibility"], reproducibility)
 
     device = _resolve_device(requested_device)
     amp_enabled = device.type == "cuda" and bool(experiment_config["training"].get("amp", False))
@@ -564,7 +586,7 @@ def _run_single_dataset(
 
     input_length = int(experiment_config["data"]["input_length"])
     datasets = {
-        split_name: Issue11ClassificationDataset(dataset, frame, input_length)
+        split_name: InternalBaselineClassificationDataset(dataset, frame, input_length)
         for split_name, frame in splits.items()
     }
     batch_size = int(experiment_config["training"]["batch_size"])
@@ -649,7 +671,7 @@ def _run_single_dataset(
                 "validation": validation_metrics,
             }
         )
-        write_json(Path(artifact_paths["history"]), {"epochs": history})
+        write_json(artifact_paths["history"], {"epochs": history})
         score = float(validation_metrics["macro_auprc"])
         if score > best_score:
             best_score = score
@@ -669,7 +691,7 @@ def _run_single_dataset(
 
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
-    eval_loaders = _make_issue11_loaders(
+    eval_loaders = _make_internal_baseline_loaders(
         dataset=dataset,
         splits=splits,
         input_length=input_length,
@@ -679,24 +701,24 @@ def _run_single_dataset(
         pin_memory=device.type == "cuda",
         shuffle_train=False,
     )
-    split_predictions = _evaluate_issue11_splits(
+    split_predictions = _evaluate_internal_baseline_splits(
         model=model,
         loaders=eval_loaders,
         device=device,
         amp_enabled=amp_enabled,
     )
-    _save_issue11_predictions(output_dir=run.output_dir, split_predictions=split_predictions)
-    summary_row, per_class_rows, validation_metrics, test_metrics = _summarize_issue11_predictions(
+    _save_internal_baseline_predictions(output_dir=run.output_dir, split_predictions=split_predictions)
+    summary_row, per_class_rows, validation_metrics, test_metrics = _summarize_internal_baseline_predictions(
         dataset_key=run.dataset_key,
         dataset_name=run.dataset_name,
-        output_dir=run.output_dir,
+        output_dir_label=run.dataset_key,
         split_counts={split_name: int(len(frame)) for split_name, frame in splits.items()},
         best_epoch=int(checkpoint["epoch"]),
         best_validation_macro_auprc=float(checkpoint["validation_macro_auprc"]),
         split_predictions=split_predictions,
     )
-    write_json(Path(artifact_paths["validation_metrics"]), validation_metrics)
-    write_json(Path(artifact_paths["test_metrics"]), test_metrics)
+    write_json(artifact_paths["validation_metrics"], validation_metrics)
+    write_json(artifact_paths["test_metrics"], test_metrics)
 
     status["status"] = "completed"
     status["finished_at"] = _utc_now()
@@ -756,9 +778,9 @@ def run_internal_dataset_baseline(
         "started_at": _utc_now(),
         "finished_at": None,
         "artifact_paths": {
-            "results_summary": str(output_root / "results_summary.csv"),
-            "per_class_summary": str(output_root / "per_class_summary.csv"),
-            "run_status": str(root_status_path),
+            "results_summary": "results_summary.csv",
+            "per_class_summary": "per_class_summary.csv",
+            "run_status": "run_status.json",
         },
     }
     write_json(root_status_path, root_status)
@@ -794,8 +816,8 @@ def run_internal_dataset_baseline(
         figure_paths = write_internal_dataset_baseline_result_figures(output_root)
         root_status["status"] = "completed"
         root_status["finished_at"] = _utc_now()
-        root_status["artifact_paths"]["results_summary"] = str(output_root / "results_summary.csv")
-        root_status["artifact_paths"]["per_class_summary"] = str(output_root / "per_class_summary.csv")
+        root_status["artifact_paths"]["results_summary"] = "results_summary.csv"
+        root_status["artifact_paths"]["per_class_summary"] = "per_class_summary.csv"
         root_status["artifact_paths"].update(figure_paths)
         root_status["completed_datasets"] = [result["dataset"] for result in completed_runs]
         write_json(root_status_path, root_status)
@@ -810,12 +832,12 @@ def run_internal_dataset_baseline(
 
 def rebuild_internal_dataset_baseline_results(
     *,
-    source_root: str | Path = "outputs/issue-11",
+    source_root: str | Path = "outputs/internal-baseline",
     output_root: str | Path = "outputs/resnet1d_internal_dataset_baseline_results",
     requested_device: str = "cpu",
-    command: str = "scripts/train.py --rebuild-results-from outputs/issue-11",
+    command: str = "scripts/train.py --rebuild-results-from outputs/internal-baseline",
 ) -> dict[str, Any]:
-    """Rebuild the issue 11 result tables from an already completed run."""
+    """Rebuild the result tables from an already completed run."""
     source_root_path = Path(source_root).expanduser().resolve()
     output_root_path = Path(output_root).expanduser().resolve()
     source_status_path = source_root_path / "run_status.json"
@@ -838,7 +860,7 @@ def rebuild_internal_dataset_baseline_results(
     root_status_path = output_root_path / "run_status.json"
     commit, dirty = _git_state()
     root_status = {
-        "experiment_id": source_status.get("experiment_id", "issue11-internal-resnet1d-baseline"),
+        "experiment_id": source_status.get("experiment_id", "resnet1d-internal-dataset-baseline"),
         "status": "running",
         "command": command,
         "git_commit": commit,
@@ -847,11 +869,11 @@ def rebuild_internal_dataset_baseline_results(
         "started_at": _utc_now(),
         "finished_at": None,
         "artifact_paths": {
-            "results_summary": str(output_root_path / "results_summary.csv"),
-            "per_class_summary": str(output_root_path / "per_class_summary.csv"),
-            "run_status": str(root_status_path),
+            "results_summary": "results_summary.csv",
+            "per_class_summary": "per_class_summary.csv",
+            "run_status": "run_status.json",
         },
-        "source_root": str(source_root_path),
+        "source_root": _display_path(source_root_path),
         "completed_datasets": completed_dataset_keys,
     }
     write_json(root_status_path, root_status)
@@ -861,7 +883,7 @@ def rebuild_internal_dataset_baseline_results(
     try:
         for dataset_key in completed_dataset_keys:
             print(f"Rebuilding results for {dataset_key}...", flush=True)
-            completed_run = _load_completed_issue11_run(source_root_path, dataset_key, output_root_path)
+            completed_run = _load_completed_internal_baseline_run(source_root_path, dataset_key, output_root_path)
             completed_run.output_dir.mkdir(parents=True, exist_ok=True)
             experiment_config = load_yaml(completed_run.experiment_config_path)
             dataset_config = load_yaml(completed_run.dataset_config_path)
@@ -877,7 +899,7 @@ def rebuild_internal_dataset_baseline_results(
             seed_everything(seed)
             input_length = int(experiment_config["data"]["input_length"])
             evaluation_batch_size = max(int(experiment_config["training"]["batch_size"]), 256)
-            loaders = _make_issue11_loaders(
+            loaders = _make_internal_baseline_loaders(
                 dataset=dataset,
                 splits=splits,
                 input_length=input_length,
@@ -892,20 +914,20 @@ def rebuild_internal_dataset_baseline_results(
                 checkpoint_path=completed_run.checkpoint_path,
                 device=device,
             )
-            split_predictions = _evaluate_issue11_splits(
+            split_predictions = _evaluate_internal_baseline_splits(
                 model=model,
                 loaders=loaders,
                 device=device,
                 amp_enabled=amp_enabled,
             )
-            _save_issue11_predictions(
+            _save_internal_baseline_predictions(
                 output_dir=completed_run.output_dir,
                 split_predictions=split_predictions,
             )
-            summary_row, per_class_result_rows, validation_metrics, test_metrics = _summarize_issue11_predictions(
+            summary_row, per_class_result_rows, validation_metrics, test_metrics = _summarize_internal_baseline_predictions(
                 dataset_key=dataset_key,
                 dataset_name=completed_run.dataset_name,
-                output_dir=completed_run.output_dir,
+                output_dir_label=dataset_key,
                 split_counts={split_name: int(len(frame)) for split_name, frame in splits.items()},
                 best_epoch=int(checkpoint["epoch"]),
                 best_validation_macro_auprc=float(checkpoint["validation_macro_auprc"]),

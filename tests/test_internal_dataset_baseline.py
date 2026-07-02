@@ -145,19 +145,26 @@ def test_internal_baseline_run_writes_per_dataset_outputs_and_summary(
     assert (output_root / "results_summary.csv").is_file()
     assert (output_root / "per_class_summary.csv").is_file()
     assert (output_root / "README.md").is_file()
+    summary = pd.read_csv(output_root / "results_summary.csv")
+    assert summary["output_dir"].tolist() == list(datasets)
+    assert not summary["output_dir"].astype(str).str.startswith("/").any()
+    run_status = json.loads((output_root / "run_status.json").read_text(encoding="utf-8"))
+    assert run_status["artifact_paths"]["results_summary"] == "results_summary.csv"
     for name in datasets:
         dataset_output = output_root / name
         assert (dataset_output / "run_status.json").is_file()
         assert (dataset_output / "validation_metrics.json").is_file()
         assert (dataset_output / "test_metrics.json").is_file()
-        assert (dataset_output / "issue11_predictions.npz").is_file()
+        assert (dataset_output / "internal_baseline_predictions.npz").is_file()
         assert (dataset_output / "generate_report" / f"{name}_validation_report.json").is_file()
         assert (dataset_output / "generate_report" / f"{name}_test_report.json").is_file()
         assert (dataset_output / "best_checkpoint.pt").is_file()
         assert (dataset_output / "split_manifest.csv").is_file()
+        dataset_status = json.loads((dataset_output / "run_status.json").read_text(encoding="utf-8"))
+        assert not any(str(value).startswith("/") for value in dataset_status["artifact_paths"].values())
 
 
-def test_rebuild_issue11_results_from_completed_run(
+def test_rebuild_internal_baseline_results_from_completed_run(
     tmp_path: Path, monkeypatch
 ) -> None:
     from ecg_shift_bench.training import internal_dataset_baseline as baseline
@@ -181,14 +188,14 @@ def test_rebuild_issue11_results_from_completed_run(
 
     completed_datasets = list(datasets)
     source_status = {
-        "experiment_id": "issue11-internal-resnet1d-baseline",
+        "experiment_id": "resnet1d-internal-dataset-baseline",
         "status": "completed",
         "completed_datasets": completed_datasets,
     }
     (source_root / "run_status.json").write_text(json.dumps(source_status), encoding="utf-8")
 
     experiment_config = {
-        "experiment": "issue11-internal-resnet1d-baseline",
+        "experiment": "resnet1d-internal-dataset-baseline",
         "model": {"name": "resnet1d", "in_channels": 12, "width": 4},
         "data": {"input_length": 64, "target_sampling_rate": 500, "target_length": 64, "unit": "mV"},
         "training": {
@@ -230,7 +237,7 @@ def test_rebuild_issue11_results_from_completed_run(
             }
         ).to_csv(path, index=False)
 
-    completed_runs: dict[str, baseline.Issue11CompletedRun] = {}
+    completed_runs: dict[str, baseline.InternalBaselineCompletedRun] = {}
     for dataset_key in completed_datasets:
         dataset_dir = source_root / dataset_key
         dataset_dir.mkdir()
@@ -242,7 +249,7 @@ def test_rebuild_issue11_results_from_completed_run(
         dataset_config_path.write_text(json.dumps(dataset_config), encoding="utf-8")
         _write_split_manifest(split_manifest_path)
         checkpoint_path.write_bytes(b"checkpoint-not-used-in-test")
-        completed_runs[dataset_key] = baseline.Issue11CompletedRun(
+        completed_runs[dataset_key] = baseline.InternalBaselineCompletedRun(
             dataset_key=dataset_key,
             dataset_name=dataset_key,
             source_output_dir=dataset_dir,
@@ -310,14 +317,22 @@ def test_rebuild_issue11_results_from_completed_run(
         ),
     }
 
-    monkeypatch.setattr(baseline, "_load_completed_issue11_run", lambda *args, **kwargs: completed_runs[args[1]])
+    monkeypatch.setattr(
+        baseline,
+        "_load_completed_internal_baseline_run",
+        lambda *args, **kwargs: completed_runs[args[1]],
+    )
     monkeypatch.setattr(baseline, "create_dataset", lambda name, root, config=None: datasets[name])
     monkeypatch.setattr(
         baseline,
         "_load_model_checkpoint",
         lambda **kwargs: (baseline.nn.Module(), {"epoch": 4, "validation_macro_auprc": 0.91}),
     )
-    monkeypatch.setattr(baseline, "_evaluate_issue11_splits", lambda **kwargs: split_predictions)
+    monkeypatch.setattr(
+        baseline,
+        "_evaluate_internal_baseline_splits",
+        lambda **kwargs: split_predictions,
+    )
 
     result = baseline.rebuild_internal_dataset_baseline_results(
         source_root=source_root,
@@ -332,9 +347,11 @@ def test_rebuild_issue11_results_from_completed_run(
     assert (output_root / "README.md").is_file()
     assert (output_root / "resnet1d_internal_dataset_baseline_overall_metrics.png").is_file()
     assert (output_root / "resnet1d_internal_dataset_baseline_per_label_metrics.png").is_file()
+    assert Path(result["status"]["source_root"]).name == "source"
+    assert result["status"]["artifact_paths"]["results_summary"] == "results_summary.csv"
     for dataset_key in completed_datasets:
         dataset_output = output_root / dataset_key
-        assert (dataset_output / "issue11_predictions.npz").is_file()
+        assert (dataset_output / "internal_baseline_predictions.npz").is_file()
         assert (dataset_output / "generate_report" / f"{dataset_key}_validation_report.json").is_file()
         assert (dataset_output / "generate_report" / f"{dataset_key}_test_report.json").is_file()
 

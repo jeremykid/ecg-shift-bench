@@ -39,7 +39,7 @@ def audit_dataset(
     *,
     waveform_check_limit: int | None = 0,
 ) -> DatasetAuditResult:
-    """Audit metadata, labels, optional waveforms, and standardized splits."""
+    """Audit metadata, labels, optional waveforms, and shared splits."""
     metadata = dataset.load_metadata()
     record_col = str(dataset.config.get("record_id_column", "record_id"))
     patient_col = dataset.config.get("patient_id_column")
@@ -84,7 +84,7 @@ def build_split_manifest(
     dataset: BaseECGDataset,
     metadata: pd.DataFrame,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Create the standardized train/validation/test manifest for one dataset."""
+    """Create the train/validation/test manifest for one dataset."""
     record_col = str(dataset.config.get("record_id_column", "record_id"))
     patient_col = dataset.config.get("patient_id_column")
     if dataset.name.upper() == "PTBXL":
@@ -421,7 +421,7 @@ def _reproducibility(dataset: BaseECGDataset) -> dict[str, Any]:
         "unit_converted": source_unit != target_unit,
         "resampling_method": "polyphase_resample_signal",
         "resampling_note": (
-            "Resampling standardizes the temporal grid for a common model input contract; "
+            "Resampling puts the temporal grid on a common model input contract; "
             "it does not add new physiological information."
         ),
     }

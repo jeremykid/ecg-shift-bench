@@ -11,5 +11,5 @@ class MultiLabelHead(nn.Module):
         self.linear = nn.Linear(input_features, num_labels)
 
     def forward(self, features):  # type annotation omitted for TorchScript friendliness
-        """Return unnormalized logits."""
+        """Return raw logits."""
         return self.linear(features)

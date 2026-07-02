@@ -27,6 +27,20 @@ from ecg_shift_bench.utils.config import load_yaml, require_keys
 from ecg_shift_bench.utils.seed import seed_everything
 
 
+def _format_command_token(token: str) -> str:
+    path = Path(token)
+    if path.is_absolute():
+        try:
+            return str(path.resolve().relative_to(PROJECT_ROOT))
+        except ValueError:
+            return str(path)
+    return token
+
+
+def _display_command(argv: list[str]) -> str:
+    return shlex.join(["python", *(_format_command_token(token) for token in argv)])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
@@ -45,7 +59,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--rebuild-results-from",
-        help="Rebuild issue 11 results from an already completed run root without retraining",
+        help="Rebuild completed results from an already completed run root without retraining",
     )
     parser.add_argument("--smoke-test", action="store_true", help="Run one tiny synthetic epoch")
     args = parser.parse_args()
@@ -67,9 +81,9 @@ def main() -> None:
                 config.get("baseline_results", {}).get(
                     "output_root", "outputs/resnet1d_internal_dataset_baseline_results"
                 )
-            ).expanduser().resolve()
+                ).expanduser().resolve()
         )
-        command = shlex.join([sys.executable, *sys.argv])
+        command = _display_command(sys.argv)
         status = rebuild_internal_dataset_baseline_results(
             source_root=Path(args.rebuild_results_from).expanduser().resolve(),
             output_root=output_root,
@@ -79,7 +93,7 @@ def main() -> None:
         print(f"Run status: {status['status']}")
         return
     if config.get("experiment") == "resnet1d-internal-dataset-baseline":
-        command = shlex.join([sys.executable, *sys.argv])
+        command = _display_command(sys.argv)
         status = run_internal_dataset_baseline(
             experiment_config=config,
             experiment_config_path=config_path,
@@ -110,7 +124,7 @@ def main() -> None:
     if not snapshot_path.is_absolute():
         snapshot_path = (Path.cwd() / snapshot_path).resolve()
     snapshot_manifest = load_yaml(snapshot_path)
-    command = shlex.join([sys.executable, *sys.argv])
+    command = _display_command(sys.argv)
     status = run_ptbxl_baseline(
         experiment_config=config,
         experiment_config_path=config_path,

@@ -8,10 +8,10 @@ Per-label undefined values remain `n/a` in the rendered table and `NaN` in the C
 
 | dataset | dataset_name | output_dir | train_records | validation_records | test_records | best_epoch | best_validation_macro_auprc | validation_accuracy | validation_auroc | validation_auprc | validation_f1_score | validation_prec | validation_rec | validation_sensitivity | validation_spec | validation_aprec | validation_br_score | test_accuracy | test_auroc | test_auprc | test_f1_score | test_prec | test_rec | test_sensitivity | test_spec | test_aprec | test_br_score |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ptbxl | ptbxl | /tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/ptbxl | 17418 | 2183 | 2198 | 5 | 0.680 | 0.921 | 0.965 | 0.650 | 0.523 | 0.392 | 0.905 | 0.905 | 0.922 | 0.680 | 0.022 | 0.919 | 0.964 | 0.659 | 0.527 | 0.399 | 0.916 | 0.916 | 0.920 | 0.668 | 0.022 |
-| code15 | code15 | /tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/code15 | 241957 | 34562 | 69260 | 5 | 0.645 | 0.947 | 0.984 | 0.627 | 0.448 | 0.305 | 0.948 | 0.948 | 0.947 | 0.645 | 0.010 | 0.947 | 0.985 | 0.628 | 0.445 | 0.302 | 0.954 | 0.954 | 0.947 | 0.634 | 0.010 |
-| chapman | chapman | /tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/chapman | 7452 | 1065 | 2129 | 4 | 0.751 | 0.933 | 0.935 | 0.742 | 0.700 | 0.609 | 0.865 | 0.865 | 0.934 | 0.751 | 0.033 | 0.938 | 0.944 | 0.724 | 0.676 | 0.586 | 0.852 | 0.852 | 0.938 | 0.767 | 0.029 |
-| sph | sph | /tmp/ecg-shift-bench-issue11/outputs/resnet1d_internal_dataset_baseline_results/sph | 18049 | 2575 | 5146 | 5 | 0.813 | 0.960 | 0.991 | 0.736 | 0.620 | 0.503 | 0.969 | 0.969 | 0.959 | 0.812 | 0.012 | 0.962 | 0.986 | 0.746 | 0.651 | 0.540 | 0.951 | 0.951 | 0.961 | 0.791 | 0.014 |
+| ptbxl | ptbxl | ptbxl | 17418 | 2183 | 2198 | 5 | 0.680 | 0.921 | 0.965 | 0.650 | 0.523 | 0.392 | 0.905 | 0.905 | 0.922 | 0.680 | 0.022 | 0.919 | 0.964 | 0.659 | 0.527 | 0.399 | 0.916 | 0.916 | 0.920 | 0.668 | 0.022 |
+| code15 | code15 | code15 | 241957 | 34562 | 69260 | 5 | 0.645 | 0.947 | 0.984 | 0.627 | 0.448 | 0.305 | 0.948 | 0.948 | 0.947 | 0.645 | 0.010 | 0.947 | 0.985 | 0.628 | 0.445 | 0.302 | 0.954 | 0.954 | 0.947 | 0.634 | 0.010 |
+| chapman | chapman | chapman | 7452 | 1065 | 2129 | 4 | 0.751 | 0.933 | 0.935 | 0.742 | 0.700 | 0.609 | 0.865 | 0.865 | 0.934 | 0.751 | 0.033 | 0.938 | 0.944 | 0.724 | 0.676 | 0.586 | 0.852 | 0.852 | 0.938 | 0.767 | 0.029 |
+| sph | sph | sph | 18049 | 2575 | 5146 | 5 | 0.813 | 0.960 | 0.991 | 0.736 | 0.620 | 0.503 | 0.969 | 0.969 | 0.959 | 0.812 | 0.012 | 0.962 | 0.986 | 0.746 | 0.651 | 0.540 | 0.951 | 0.951 | 0.961 | 0.791 | 0.014 |
 
 ## Per-label metrics
 

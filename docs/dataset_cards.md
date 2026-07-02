@@ -23,7 +23,7 @@ official sources and follow their current license and access requirements.
 - Expected native label field: `Rhythm`
 - The waveform CSVs are lead-last on disk; the loader reorders them to lead-first `(12, L)`.
 - Loader converts the raw waveforms from `uV` to the shared benchmark unit `mV`.
-- TODO: normalize release-specific column names, waveform CSV orientation, durations,
+- TODO: harmonize release-specific column names, waveform CSV orientation, durations,
   patient identifiers, and the interpretation of Chapman versus Ningbo as one or two domains.
 
 ## SPH

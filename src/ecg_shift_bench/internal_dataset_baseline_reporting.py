@@ -30,6 +30,14 @@ def _save_figure(fig, output_dir: Path, stem: str) -> dict[str, str]:
     return {"png": str(png_path), "svg": str(svg_path)}
 
 
+def _relativize_path(path: str | Path, base_dir: Path) -> str:
+    resolved = Path(path)
+    try:
+        return str(resolved.relative_to(base_dir))
+    except ValueError:
+        return str(resolved)
+
+
 def _format_value(value: object, *, precision: int = 3) -> str:
     if value is None:
         return ""
@@ -288,8 +296,8 @@ def _per_label_summary_figure(per_class: pd.DataFrame, output_dir: Path) -> dict
     }
 
 
-def _load_issue11_prediction_bundle(dataset_dir: Path) -> dict[str, object] | None:
-    bundle_path = dataset_dir / "issue11_predictions.npz"
+def _load_internal_baseline_prediction_bundle(dataset_dir: Path) -> dict[str, object] | None:
+    bundle_path = dataset_dir / "internal_baseline_predictions.npz"
     if not bundle_path.is_file():
         return None
     with np.load(bundle_path, allow_pickle=True) as bundle:
@@ -644,8 +652,8 @@ def write_internal_dataset_baseline_result_figures(output_root: str | Path) -> d
     for _, row in summary.iterrows():
         dataset_key = str(row["dataset"])
         dataset_name = str(row["dataset_name"])
-        dataset_dir = Path(str(row["output_dir"]))
-        bundle = _load_issue11_prediction_bundle(dataset_dir)
+        dataset_dir = output_dir / dataset_key
+        bundle = _load_internal_baseline_prediction_bundle(dataset_dir)
         if bundle is None:
             continue
         split_predictions = bundle["split_predictions"]
@@ -689,4 +697,6 @@ def write_internal_dataset_baseline_result_figures(output_root: str | Path) -> d
             report_paths=report_paths or None,
         )
     )
+    for key, value in list(figure_paths.items()):
+        figure_paths[key] = _relativize_path(value, output_dir)
     return figure_paths
