@@ -4,7 +4,7 @@ from torch import nn
 
 
 class TENT(nn.Module):
-    """Placeholder for entropy-minimizing test-time normalization updates."""
+    """Placeholder for entropy-minimizing test-time adaptation updates."""
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError(
