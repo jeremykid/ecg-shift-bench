@@ -1,6 +1,6 @@
 """SPH ECG metadata and HDF5 waveform loader.
 
-Expected: a normalized ``metadata.csv`` index and waveform files under
+Expected: a ``metadata.csv`` index and waveform files under
 ``records/``.
 """
 

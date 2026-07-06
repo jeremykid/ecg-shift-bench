@@ -80,7 +80,7 @@ def align_ecg_signal(
 
 def canonical_unit_name(unit: str) -> str:
     """Return the canonical ECG unit label used by the shared alignment path."""
-    normalized = (
+    canonical = (
         str(unit)
         .strip()
         .replace("\u03bc", "u")
@@ -88,7 +88,7 @@ def canonical_unit_name(unit: str) -> str:
         .casefold()
     )
     try:
-        return _UNIT_ALIASES[normalized]
+        return _UNIT_ALIASES[canonical]
     except KeyError as error:
         raise ValueError(f"Unsupported ECG unit {unit!r}; expected mV or uV") from error
 

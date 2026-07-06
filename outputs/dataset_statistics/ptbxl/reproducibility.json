@@ -16,7 +16,7 @@
     "V6"
   ],
   "resampling_method": "polyphase_resample_signal",
-  "resampling_note": "Resampling standardizes the temporal grid for a common model input contract; it does not add new physiological information.",
+  "resampling_note": "Resampling puts the temporal grid on a common model input contract; it does not add new physiological information.",
   "source_sampling_rate": 500,
   "source_unit": "mV",
   "target_length": 5000,

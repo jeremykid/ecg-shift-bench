@@ -7,10 +7,16 @@ returns physical signals in mV with canonical 12-lead ordering.
 
 from pathlib import Path
 from typing import Any
+from types import SimpleNamespace
 
 import numpy as np
 
 from ecg_shift_bench.datasets._tabular import TabularSkeletonDataset
+
+try:  # pragma: no cover - optional dependency is exercised in integration tests.
+    import wfdb
+except ImportError:  # pragma: no cover - handled at load time.
+    wfdb = SimpleNamespace(rdsamp=None)
 
 CANONICAL_LEAD_ORDER = [
     "I",
@@ -50,12 +56,12 @@ class PTBXLDataset(TabularSkeletonDataset):
 
     def load_signal(self, record_id: str) -> np.ndarray:
         """Load one high- or low-resolution WFDB record as ``(12, samples)``."""
-        import wfdb
-
         row = self._metadata_row(record_id)
         path_column = self.config.get("record_path_column", "filename_hr")
         if path_column not in row.index:
             raise ValueError(f"PTB-XL metadata is missing record path column {path_column!r}")
+        if not hasattr(wfdb, "rdsamp"):
+            raise ImportError("wfdb is required to load PTB-XL signals")
         record_path = self.root / str(row[path_column])
         signal, fields = wfdb.rdsamp(str(record_path))
         signal = np.asarray(signal, dtype=np.float32)
