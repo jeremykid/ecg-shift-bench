@@ -26,6 +26,17 @@ official sources and follow their current license and access requirements.
 - TODO: normalize release-specific column names, waveform CSV orientation, durations,
   patient identifiers, and the interpretation of Chapman versus Ningbo as one or two domains.
 
+## CPSC
+
+- Configured metadata: `data/raw/cpsc/WFDB_CPSC2018_label/WFDB_CPSC2018.csv`
+- Configured metadata: `data/raw/cpsc/WFDB_CPSC2018_label/WFDB_CPSC2018_2.csv`
+- Configured signals: `data/raw/cpsc/WFDB_CPSC2018/`
+- Configured signals: `data/raw/cpsc/WFDB_CPSC2018_2/`
+- Native signal unit: `mV`
+- Expected native labels: WFDB header `#Dx:` codes, one or more per record
+- The release uses the shared 12-lead WFDB layout and is stored as aligned source-target
+  benchmark input under the project's public dataset root.
+
 ## SPH
 
 - Configured metadata: `data/raw/sph/metadata.csv`
