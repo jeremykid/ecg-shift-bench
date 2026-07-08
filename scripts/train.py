@@ -16,6 +16,10 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from ecg_shift_bench.models.resnet1d import ResNet1D
+from ecg_shift_bench.training.internal_dataset_baseline import (
+    rebuild_internal_dataset_baseline_results,
+    run_internal_dataset_baseline,
+)
 from ecg_shift_bench.training.optim import create_optimizer
 from ecg_shift_bench.training.source_only_cross_domain import (
     _prepare_dataset_spec,
@@ -101,6 +105,10 @@ def main() -> None:
         action="store_true",
         help="Validate the snapshot and run one real forward/backward batch, then stop",
     )
+    parser.add_argument(
+        "--rebuild-results-from",
+        help="Rebuild completed results from an already completed run root without retraining",
+    )
     parser.add_argument("--smoke-test", action="store_true", help="Run one tiny synthetic epoch")
     args = parser.parse_args()
 
@@ -113,6 +121,25 @@ def main() -> None:
     print(f"Validated experiment: {config.get('experiment', 'unnamed')}")
     if args.smoke_test:
         run_smoke_test(config)
+        return
+    if args.rebuild_results_from:
+        output_root = (
+            Path(args.output_dir).expanduser().resolve()
+            if args.output_dir
+            else Path(
+                config.get("baseline_results", {}).get(
+                    "output_root", "outputs/resnet1d_internal_dataset_baseline_results"
+                )
+            ).expanduser().resolve()
+        )
+        command = _display_command(sys.argv)
+        status = rebuild_internal_dataset_baseline_results(
+            source_root=Path(args.rebuild_results_from).expanduser().resolve(),
+            output_root=output_root,
+            requested_device=args.device,
+            command=command,
+        )
+        print(f"Run status: {status['status']}")
         return
     source_datasets = list(config.get("source_datasets") or [])
     target_datasets = list(config.get("target_datasets") or [])
@@ -146,6 +173,18 @@ def main() -> None:
             output_dir=Path(args.output_dir).expanduser().resolve(),
             requested_device=args.device,
             command=command,
+            preflight_only=args.preflight_only,
+        )
+        print(f"Run status: {status['status']}")
+        return
+    if config.get("experiment") == "resnet1d-internal-dataset-baseline":
+        command = _display_command(sys.argv)
+        status = run_internal_dataset_baseline(
+            experiment_config=config,
+            experiment_config_path=config_path,
+            requested_device=args.device,
+            command=command,
+            output_root_override=args.output_dir,
             preflight_only=args.preflight_only,
         )
         print(f"Run status: {status['status']}")

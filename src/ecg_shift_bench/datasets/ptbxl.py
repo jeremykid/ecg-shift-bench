@@ -62,6 +62,8 @@ class PTBXLDataset(TabularSkeletonDataset):
         path_column = self.config.get("record_path_column", "filename_hr")
         if path_column not in row.index:
             raise ValueError(f"PTB-XL metadata is missing record path column {path_column!r}")
+        if not hasattr(wfdb, "rdsamp"):
+            raise ImportError("wfdb is required to load PTB-XL signals")
         record_path = self.root / str(row[path_column])
         signal, fields = wfdb.rdsamp(str(record_path))
         signal = np.asarray(signal, dtype=np.float32)

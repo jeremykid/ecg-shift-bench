@@ -13,10 +13,12 @@ authors = [{name = "ECGShiftBench contributors"}]
 dependencies = [
   "numpy>=1.23",
   "pandas>=1.5",
+  "matplotlib>=3.6",
   "scipy>=1.9",
   "scikit-learn>=1.2",
   "pyyaml>=6.0",
   "tqdm>=4.64",
+  "matplotlib>=3.8",
   "torch>=2.0",
   "wfdb>=4.1",
   "h5py>=3.8",
