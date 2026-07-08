@@ -28,6 +28,20 @@ from ecg_shift_bench.utils.paths import resolve_project_path
 from ecg_shift_bench.utils.seed import seed_everything
 
 
+def _format_command_token(token: str) -> str:
+    path = Path(token)
+    if path.is_absolute():
+        try:
+            return str(path.resolve().relative_to(PROJECT_ROOT))
+        except ValueError:
+            return str(path)
+    return token
+
+
+def _display_command(argv: list[str]) -> str:
+    return shlex.join(["python", *(_format_command_token(token) for token in argv)])
+
+
 def _dataset_config_path(dataset_name: str) -> Path:
     return resolve_project_path(Path("configs/datasets") / f"{dataset_name.lower().replace('-', '')}.yaml")
 
@@ -123,7 +137,7 @@ def main() -> None:
             dataset_config_path=target_dataset_config_path,
             root_override=args.target_root,
         )
-        command = shlex.join([sys.executable, *sys.argv])
+        command = _display_command(sys.argv)
         status = run_source_only_cross_domain(
             experiment_config=config,
             experiment_config_path=config_path,
@@ -156,7 +170,7 @@ def main() -> None:
     if not snapshot_path.is_absolute():
         snapshot_path = (Path.cwd() / snapshot_path).resolve()
     snapshot_manifest = load_yaml(snapshot_path)
-    command = shlex.join([sys.executable, *sys.argv])
+    command = _display_command(sys.argv)
     status = run_ptbxl_baseline(
         experiment_config=config,
         experiment_config_path=config_path,

@@ -187,7 +187,7 @@ def test_waveform_audit_validates_aligned_contract(tmp_path: Path) -> None:
             "V5",
             "V6",
         ],
-        "normalization": "per_lead_zscore",
+        "normalization": "none",
     }
     assert result.exclusions.empty
 

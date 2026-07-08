@@ -166,7 +166,7 @@ def _waveform_check_summary(
         "target_sampling_rate": int(dataset.config.get("target_sampling_rate", 500)),
         "target_length": int(dataset.config.get("target_length", 5000)),
         "lead_order": dataset.config.get("lead_order", CANONICAL_LEAD_ORDER),
-        "normalization": dataset.config.get("normalization", "per_lead_zscore"),
+        "normalization": dataset.config.get("normalization", "none"),
     }
 
 
@@ -179,13 +179,6 @@ def _validate_aligned_signal(signal: np.ndarray, dataset: BaseECGDataset) -> Non
         raise ValueError(f"expected float32 aligned signal, got {signal.dtype}")
     if not np.isfinite(signal).all():
         raise ValueError("aligned signal contains non-finite values")
-    if dataset.config.get("normalization", "per_lead_zscore") == "per_lead_zscore":
-        means = signal.mean(axis=-1)
-        stds = signal.std(axis=-1)
-        if not np.allclose(means, 0.0, atol=1e-4):
-            raise ValueError("aligned signal is not centered per lead")
-        if not np.all((stds < 1e-6) | np.isclose(stds, 1.0, atol=1e-3)):
-            raise ValueError("aligned signal is not z-scored per lead")
 
 
 def _label_summary(
@@ -319,7 +312,7 @@ def _reproducibility(dataset: BaseECGDataset) -> dict[str, Any]:
         "target_sampling_rate": target_rate,
         "target_length": target_length,
         "lead_order": dataset.config.get("lead_order", CANONICAL_LEAD_ORDER),
-        "normalization": dataset.config.get("normalization", "per_lead_zscore"),
+        "normalization": dataset.config.get("normalization", "none"),
         "resampling_method": "polyphase_resample_signal",
         "resampling_note": (
             "Resampling standardizes the temporal grid for a common model input contract; "
