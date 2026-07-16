@@ -12,15 +12,16 @@ class InceptionTime1D(nn.Module):
     def __init__(self, in_channels: int = 12, num_labels: int = 6, width: int = 32) -> None:
         super().__init__()
         self.branches = nn.ModuleList(
-            [
-                nn.Conv1d(in_channels, width, kernel, padding=kernel // 2)
-                for kernel in (9, 19, 39)
-            ]
+            [nn.Conv1d(in_channels, width, kernel, padding=kernel // 2) for kernel in (9, 19, 39)]
         )
         self.pool = nn.AdaptiveAvgPool1d(1)
         self.head = MultiLabelHead(width * len(self.branches), num_labels)
 
+    def forward_features(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Return the pooled multi-branch representation used by the head."""
+        features = torch.cat([torch.relu(branch(inputs)) for branch in self.branches], dim=1)
+        return self.pool(features).squeeze(-1)
+
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Return one logit per canonical label."""
-        features = torch.cat([torch.relu(branch(inputs)) for branch in self.branches], dim=1)
-        return self.head(self.pool(features).squeeze(-1))
+        return self.head(self.forward_features(inputs))

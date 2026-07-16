@@ -1,4 +1,4 @@
-"""Workflow tests for the source-only cross-domain baseline."""
+"""Workflow tests for the generic UDA training path."""
 
 from __future__ import annotations
 
@@ -10,9 +10,10 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+from torch import nn
 
 from ecg_shift_bench.labels.canonical import CANONICAL_LABELS
-from ecg_shift_bench.training import source_only_cross_domain as source_only
+from ecg_shift_bench.training import uda
 
 
 @dataclass
@@ -24,12 +25,15 @@ class FakeDataset:
     signals: dict[str, np.ndarray]
     labels: dict[str, dict[str, int]]
     calls: list[str]
+    label_calls: int = 0
 
     def load_metadata(self) -> pd.DataFrame:
         self.calls.append(f"load_metadata:{self.name}")
         return self.metadata.copy()
 
     def get_labels(self, record_id: str) -> dict[str, int]:
+        self.label_calls += 1
+        self.calls.append(f"get_labels:{self.name}:{record_id}")
         return dict(self.labels[str(record_id)])
 
     def load_aligned_signal(self, record_id: str) -> np.ndarray:
@@ -37,14 +41,27 @@ class FakeDataset:
         return self.signals[str(record_id)].copy()
 
 
+class TinyUdaModel(nn.Module):
+    def __init__(self, num_labels: int = 6) -> None:
+        super().__init__()
+        self.encoder = nn.Sequential(nn.Flatten(), nn.Linear(12 * 8, 4), nn.ReLU())
+        self.head = nn.Linear(4, num_labels)
+
+    def forward_features(self, inputs: torch.Tensor) -> torch.Tensor:
+        return self.encoder(inputs)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        return self.head(self.forward_features(inputs))
+
+
 def _labels(index: int) -> dict[str, int]:
     vectors = [
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 1],
+        [1, 0, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0, 1],
+        [1, 1, 0, 0, 1, 1],
+        [0, 0, 1, 1, 0, 0],
+        [1, 0, 0, 1, 0, 0],
+        [0, 1, 1, 0, 1, 0],
     ]
     return dict(zip(CANONICAL_LABELS, vectors[index], strict=True))
 
@@ -74,81 +91,34 @@ def _fake_split_manifest(
     dataset: FakeDataset,
     metadata: pd.DataFrame,
 ) -> tuple[pd.DataFrame, dict[str, object]]:
-    if dataset.name == "SOURCE":
-        manifest = pd.DataFrame(
-            {
-                "record_id": ["s1", "s2", "s3", "s4", "s5", "s6"],
-                "split": ["train", "train", "train", "validation", "validation", "test"],
-            }
-        )
-        policy = {"method": "generated", "split_source": "generated", "seed": 7}
-    else:
-        manifest = pd.DataFrame(
-            {
-                "record_id": ["t1", "t2", "t3", "t4", "t5", "t6"],
-                "split": ["train", "train", "validation", "validation", "test", "test"],
-            }
-        )
-        policy = {"method": "official", "split_source": "official"}
-    manifest["patient_id"] = metadata["patient_id"].astype(str).tolist()
-    return manifest, policy
+    splits = {
+        "SOURCE": ["train", "train", "validation", "validation", "test", "test"],
+        "TARGET": ["train", "train", "validation", "validation", "test", "test"],
+    }
+    policy = {
+        "SOURCE": {"method": "generated", "split_source": "generated", "seed": 7},
+        "TARGET": {"method": "official", "split_source": "official"},
+    }
+    manifest = pd.DataFrame(
+        {
+            "record_id": metadata["record_id"].astype(str).tolist(),
+            "split": splits[dataset.name],
+            "patient_id": metadata["patient_id"].astype(str).tolist(),
+        }
+    )
+    return manifest, policy[dataset.name]
 
 
 def _write_yaml(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def test_aligned_dataset_reads_standard_manifest_record_ids() -> None:
-    dataset = FakeDataset(
-        name="SOURCE",
-        domain="source_domain",
-        config={
-            "record_id_column": "ecg_id",
-            "patient_id_column": "patient_id",
-            "sampling_rate": 500,
-            "target_sampling_rate": 500,
-            "target_length": 8,
-            "source_unit": "mV",
-            "target_unit": "mV",
-            "domain": "source_domain",
-        },
-        metadata=pd.DataFrame(
-            {
-                "record_id": ["s1", "s2"],
-                "patient_id": ["p1", "p2"],
-            }
-        ),
-        signals={
-            "s1": np.full((12, 8), 1.0, dtype=np.float32),
-            "s2": np.full((12, 8), 2.0, dtype=np.float32),
-        },
-        labels={
-            "s1": _labels(0),
-            "s2": _labels(1),
-        },
-        calls=[],
-    )
-    dataset_frame = pd.DataFrame(
-        {
-            "record_id": ["s1", "s2"],
-            "patient_id": ["p1", "p2"],
-            "split": ["train", "validation"],
-        }
-    )
-
-    aligned = source_only.AlignedClassificationDataset(dataset, dataset_frame, 8)
-
-    inputs, targets = aligned[0]
-    assert inputs.shape == (12, 8)
-    assert targets.shape == (6,)
-
-
-def test_source_only_run_uses_source_data_before_target_and_writes_report_schema(
+def test_uda_run_uses_unlabeled_target_batches_and_writes_full_report(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[str] = []
-    source_metadata, source_signals, source_labels = _fake_records("s", 6, length=64)
-    target_metadata, target_signals, target_labels = _fake_records("t", 6, length=64)
+    source_metadata, source_signals, source_labels = _fake_records("s", 6, length=8)
+    target_metadata, target_signals, target_labels = _fake_records("t", 6, length=8)
     datasets = {
         "SOURCE": FakeDataset(
             name="SOURCE",
@@ -158,7 +128,7 @@ def test_source_only_run_uses_source_data_before_target_and_writes_report_schema
                 "patient_id_column": "patient_id",
                 "sampling_rate": 500,
                 "target_sampling_rate": 500,
-                "target_length": 64,
+                "target_length": 8,
                 "source_unit": "mV",
                 "target_unit": "mV",
                 "domain": "source_domain",
@@ -176,7 +146,7 @@ def test_source_only_run_uses_source_data_before_target_and_writes_report_schema
                 "patient_id_column": "patient_id",
                 "sampling_rate": 500,
                 "target_sampling_rate": 500,
-                "target_length": 64,
+                "target_length": 8,
                 "source_unit": "mV",
                 "target_unit": "mV",
                 "domain": "target_domain",
@@ -199,7 +169,7 @@ def test_source_only_run_uses_source_data_before_target_and_writes_report_schema
         "patient_id_column: patient_id\n"
         "sampling_rate: 500\n"
         "target_sampling_rate: 500\n"
-        "target_length: 64\n"
+        "target_length: 8\n"
         "source_unit: mV\n"
         "target_unit: mV\n"
         "domain: source_domain\n",
@@ -212,18 +182,18 @@ def test_source_only_run_uses_source_data_before_target_and_writes_report_schema
         "patient_id_column: patient_id\n"
         "sampling_rate: 500\n"
         "target_sampling_rate: 500\n"
-        "target_length: 64\n"
+        "target_length: 8\n"
         "source_unit: mV\n"
         "target_unit: mV\n"
         "domain: target_domain\n",
     )
     _write_yaml(
         experiment_config_path,
-        "experiment: source_only_source_to_target\nmethod: source_only\n",
+        "experiment: uda_source_only_source_to_target\nmethod: source_only\n",
     )
 
     experiment_config = {
-        "experiment": "source_only_source_to_target",
+        "experiment": "uda_source_only_source_to_target",
         "method": "source_only",
         "source_datasets": ["SOURCE"],
         "target_datasets": ["TARGET"],
@@ -233,7 +203,7 @@ def test_source_only_run_uses_source_data_before_target_and_writes_report_schema
         },
         "model": {"name": "resnet1d", "width": 4},
         "data": {
-            "input_length": 64,
+            "input_length": 8,
             "preprocessing_version": "shared_alignment_v1",
             "sampling_rate": 500,
             "target_sampling_rate": 500,
@@ -245,52 +215,74 @@ def test_source_only_run_uses_source_data_before_target_and_writes_report_schema
             "seed": 7,
             "batch_size": 2,
             "workers": 0,
-            "epochs": 1,
+            "epochs": 2,
             "optimizer": "adamw",
             "learning_rate": 0.001,
             "weight_decay": 0.0,
             "amp": False,
         },
+        "evaluation": {"selection_metric": "source_validation_macro_auroc"},
+        "method_params": {},
+        "protocol": {
+            "target_inputs_available_during_training": True,
+            "target_labels_available_during_training": False,
+        },
     }
 
-    monkeypatch.setattr(source_only, "_git_state", lambda: ("deadbeef", False))
-    monkeypatch.setattr(source_only, "_resolve_device", lambda requested: torch.device("cpu"))
+    monkeypatch.setattr(uda, "_git_state", lambda: ("deadbeef", False))
+    monkeypatch.setattr(uda, "_resolve_device", lambda requested: torch.device("cpu"))
     monkeypatch.setattr(
-        source_only,
+        uda,
         "create_dataset",
         lambda name, root, config: calls.append(f"create_dataset:{name}") or datasets[name],
     )
-    monkeypatch.setattr(source_only, "build_split_manifest", _fake_split_manifest)
-    monkeypatch.setattr(source_only, "preflight_forward_backward", lambda *args, **kwargs: 0.25)
+    monkeypatch.setattr(uda, "build_split_manifest", _fake_split_manifest)
+    monkeypatch.setattr(
+        uda, "create_model", lambda model_config, *, num_labels: TinyUdaModel(num_labels)
+    )
 
-    def fake_train_epoch(
+    source_train = np.array(
+        [
+            [1, 0, 1, 0, 1, 0],
+            [0, 1, 0, 1, 0, 1],
+        ],
+        dtype=int,
+    )
+    good_scores = source_train * 0.9 + (1 - source_train) * 0.1
+    bad_scores = source_train * 0.1 + (1 - source_train) * 0.9
+
+    def fake_collect_predictions(
         model,
         batches,
-        optimizer,
-        criterion,
         device,
         amp_enabled,
         *,
         description,
     ):
-        calls.append(f"train_epoch:{description}:{batches.dataset.dataset.name}")
-        batch = next(iter(batches))
-        calls.append(f"train_batch:{float(batch[0].mean()):.1f}")
-        return {"loss": 0.1, "min_batch_loss": 0.1, "max_batch_loss": 0.1, "steps": 1, "samples": 2}
+        del model, batches, device, amp_enabled
+        if "source train" in description:
+            return source_train, good_scores
+        if "source validation" in description and "1/2" in description:
+            return source_train, bad_scores
+        if "source validation" in description:
+            return source_train, good_scores
+        if "target validation" in description or "target test" in description:
+            return source_train, good_scores
+        raise AssertionError(f"Unexpected description: {description}")
 
-    monkeypatch.setattr(source_only, "train_epoch", fake_train_epoch)
+    monkeypatch.setattr(uda, "_collect_predictions", fake_collect_predictions)
 
     output_dir = tmp_path / "outputs"
-    status = source_only.run_source_only_cross_domain(
+    status = uda.run_uda_cross_domain(
         experiment_config=experiment_config,
         experiment_config_path=experiment_config_path,
-        source_dataset_spec=source_only.DatasetSpec(
+        source_dataset_spec=uda.DatasetSpec(
             name="SOURCE",
             root=tmp_path / "source_root",
             config=dict(datasets["SOURCE"].config),
             config_path=source_dataset_config,
         ),
-        target_dataset_spec=source_only.DatasetSpec(
+        target_dataset_spec=uda.DatasetSpec(
             name="TARGET",
             root=tmp_path / "target_root",
             config=dict(datasets["TARGET"].config),
@@ -302,26 +294,21 @@ def test_source_only_run_uses_source_data_before_target_and_writes_report_schema
     )
 
     assert status["status"] == "completed"
-    assert calls.index("create_dataset:SOURCE") < calls.index("train_epoch:source train 1/1:SOURCE")
-    assert calls.index("train_epoch:source train 1/1:SOURCE") < calls.index("create_dataset:TARGET")
-    assert not any(
-        entry.startswith("load_signal:TARGET")
-        for entry in calls[: calls.index("create_dataset:TARGET")]
-    )
+    assert status["best_epoch"] == 2
+    assert status["protocol"]["target_inputs_available_during_training"] is True
+    assert status["protocol"]["target_labels_available_during_training"] is False
+    assert datasets["TARGET"].label_calls == 4
 
     summary = pd.read_csv(output_dir / "results_summary.csv").iloc[0].to_dict()
     assert summary["source_dataset"] == "SOURCE"
     assert summary["target_dataset"] == "TARGET"
-    assert summary["source_split_version"] == "generated_seed7"
-    assert summary["target_split_version"] == "official"
-    assert summary["split_version"] == "source:generated_seed7|target:official"
-    assert summary["preprocessing_version"] == "shared_alignment_v1"
-    assert summary["selection_metric"] == "source_validation_macro_auprc"
-    assert summary["source_train_records"] == 3
+    assert summary["selection_metric"] == "source_validation_macro_auroc"
+    assert summary["best_epoch"] == 2
+    assert summary["source_train_records"] == 2
     assert summary["source_validation_records"] == 2
+    assert summary["target_validation_records"] == 2
     assert summary["target_test_records"] == 2
-    assert summary["model_architecture"] == "resnet1d"
-    assert summary["evaluation_metrics"]
+    assert summary["feature_extraction"] == "model.forward_features"
 
     per_class = pd.read_csv(output_dir / "per_class_summary.csv")
     assert per_class["split"].tolist() == [
@@ -337,6 +324,12 @@ def test_source_only_run_uses_source_data_before_target_and_writes_report_schema
         "source_validation",
         "source_validation",
         "source_validation",
+        "target_validation",
+        "target_validation",
+        "target_validation",
+        "target_validation",
+        "target_validation",
+        "target_validation",
         "target_test",
         "target_test",
         "target_test",
@@ -346,12 +339,12 @@ def test_source_only_run_uses_source_data_before_target_and_writes_report_schema
     ]
     assert per_class["label"].tolist()[:6] == list(CANONICAL_LABELS)
     training_log = pd.read_csv(output_dir / "training_log.csv")
-    assert training_log["phase"].tolist() == ["epoch", "final_evaluation"]
+    assert training_log["phase"].tolist() == ["epoch", "epoch", "final_evaluation"]
     assert "source_classification_loss" in training_log.columns
-    assert "selection_score" in training_log.columns
+    assert "adaptation_loss" in training_log.columns
+    assert "target_test_macro_auroc" in training_log.columns
 
     status_json = json.loads((output_dir / "run_status.json").read_text(encoding="utf-8"))
-    assert status_json["protocol"]["target_labels_available_during_training"] is False
-    assert status_json["protocol"]["target_unlabeled_data_available_during_training"] is False
-    assert status_json["protocol"]["model_updates_during_testing"] is False
-    assert status_json["protocol"]["normalization"] == "none"
+    assert status_json["protocol"]["target_inputs_available_during_training"] is True
+    assert status_json["method_metadata"]["name"] == "source_only"
+    assert (output_dir / "target_validation_metrics.json").exists()

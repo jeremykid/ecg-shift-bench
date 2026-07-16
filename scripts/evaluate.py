@@ -18,6 +18,7 @@ from ecg_shift_bench.evaluation.metrics import multilabel_metrics, source_script
 from ecg_shift_bench.training.source_only_cross_domain import (
     rebuild_source_only_cross_domain_results,
 )
+from ecg_shift_bench.training.uda import rebuild_uda_cross_domain_results
 from ecg_shift_bench.utils.config import load_yaml, require_keys
 
 
@@ -59,10 +60,22 @@ def main() -> None:
     parser.add_argument("--run-dir", help="Rebuild standard tables from a completed run")
     args = parser.parse_args()
     if args.run_dir:
-        status = rebuild_source_only_cross_domain_results(
-            run_dir=Path(args.run_dir).expanduser().resolve(),
-            command=shlex.join([sys.executable, *sys.argv]),
-        )
+        run_dir = Path(args.run_dir).expanduser().resolve()
+        status_path = run_dir / "run_status.json"
+        if not status_path.is_file():
+            raise FileNotFoundError(f"Missing run status: {status_path}")
+        status_payload = json.loads(status_path.read_text(encoding="utf-8"))
+        protocol = dict(status_payload.get("protocol") or {})
+        if bool(protocol.get("target_inputs_available_during_training")):
+            status = rebuild_uda_cross_domain_results(
+                run_dir=run_dir,
+                command=shlex.join([sys.executable, *sys.argv]),
+            )
+        else:
+            status = rebuild_source_only_cross_domain_results(
+                run_dir=run_dir,
+                command=shlex.join([sys.executable, *sys.argv]),
+            )
         print(f"Rebuilt run status: {status['status']['status']}")
         return
     if not args.config:

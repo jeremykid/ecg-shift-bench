@@ -201,6 +201,12 @@ def test_evaluate_cli_rebuilds_completed_run(
 ) -> None:
     script = _load_script_module("evaluate.py")
     captured: dict[str, object] = {}
+    run_dir = tmp_path / "outputs"
+    run_dir.mkdir()
+    (run_dir / "run_status.json").write_text(
+        '{"status": "completed", "protocol": {"target_inputs_available_during_training": false}}\n',
+        encoding="utf-8",
+    )
     monkeypatch.setattr(
         script,
         "rebuild_source_only_cross_domain_results",
@@ -210,10 +216,10 @@ def test_evaluate_cli_rebuilds_completed_run(
     argv = [
         "scripts/evaluate.py",
         "--run-dir",
-        str(tmp_path / "outputs"),
+        str(run_dir),
     ]
     monkeypatch.setattr(sys, "argv", argv)
 
     script.main()
 
-    assert captured["run_dir"] == tmp_path / "outputs"
+    assert captured["run_dir"] == run_dir

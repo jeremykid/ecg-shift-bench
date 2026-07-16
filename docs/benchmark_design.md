@@ -14,8 +14,11 @@ documented hospital, country, or device subgroup where provenance supports that 
    the manifest and reporting each source separately.
 3. **Leave-one-domain-out:** hold one complete domain out; fit and select models using remaining
    domains; rotate the held-out domain when all adapters are validated.
-4. **UDA:** target signals may be observed without labels during adaptation. No target-label
-   threshold tuning, early stopping, model selection, or hyperparameter selection is allowed.
+4. **UDA:** target signals may be observed without labels during adaptation, but target labels
+   stay hidden from loss computation, early stopping, model selection, and hyperparameter
+   selection. UDA runs select checkpoints from source validation only.
+   For per-label F1 reporting, thresholds are derived from source-train scores and then fixed;
+   target labels are never used for threshold tuning.
 
 Target-supervised and few-shot experiments must use distinct protocol names and predeclare the
 number and selection procedure for labeled target examples.

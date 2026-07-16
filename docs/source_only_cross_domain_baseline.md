@@ -70,6 +70,7 @@ recorded fields include:
 - random seed
 - split version
 - preprocessing version
+- training log
 
 The source-train scores define the per-label thresholds, and the source
 validation split selects the best checkpoint by macro AUPRC.

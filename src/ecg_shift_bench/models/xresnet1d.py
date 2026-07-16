@@ -169,12 +169,15 @@ class XResNet1D(nn.Module):
             nn.Linear(stage_channels[-1], num_labels),
         )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        """Return one logit per label."""
+    def forward_features(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Return the pooled encoder representation consumed by the classifier head."""
         features = self.stem(inputs)
         features = self.stages(features)
-        pooled = self.pool(features).squeeze(-1)
-        return self.head(pooled)
+        return self.pool(features).squeeze(-1)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Return one logit per label."""
+        return self.head(self.forward_features(inputs))
 
 
 def xresnet1d(
