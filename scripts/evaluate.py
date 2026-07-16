@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -13,8 +14,10 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from ecg_shift_bench.evaluation.metrics import multilabel_metrics
-from ecg_shift_bench.evaluation.metrics import source_script_multilabel_report
+from ecg_shift_bench.evaluation.metrics import multilabel_metrics, source_script_multilabel_report
+from ecg_shift_bench.training.source_only_cross_domain import (
+    rebuild_source_only_cross_domain_results,
+)
 from ecg_shift_bench.utils.config import load_yaml, require_keys
 
 
@@ -24,11 +27,15 @@ def _load_thresholds(path: Path) -> dict[str, float] | list[float] | tuple[float
         if "thresholds" not in arrays:
             raise ValueError(f"{path} does not contain thresholds")
         if "label_names" in arrays:
-            label_names = [str(name) for name in np.asarray(arrays["label_names"], dtype=object).tolist()]
+            label_names = [
+                str(name) for name in np.asarray(arrays["label_names"], dtype=object).tolist()
+            ]
             thresholds_array = np.asarray(arrays["thresholds"], dtype=float)
             if thresholds_array.shape != (len(label_names),):
                 raise ValueError("thresholds array must match label_names length")
-            return {label: float(thresholds_array[index]) for index, label in enumerate(label_names)}
+            return {
+                label: float(thresholds_array[index]) for index, label in enumerate(label_names)
+            }
         return np.asarray(arrays["thresholds"], dtype=float)
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict):
@@ -43,13 +50,23 @@ def _load_thresholds(path: Path) -> dict[str, float] | list[float] | tuple[float
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", required=True)
+    parser.add_argument("--config")
     parser.add_argument("--predictions", help="NPZ containing y_true and y_score arrays")
     parser.add_argument(
         "--thresholds",
         help="Optional JSON/NPZ thresholds aligned with the prediction labels",
     )
+    parser.add_argument("--run-dir", help="Rebuild standard tables from a completed run")
     args = parser.parse_args()
+    if args.run_dir:
+        status = rebuild_source_only_cross_domain_results(
+            run_dir=Path(args.run_dir).expanduser().resolve(),
+            command=shlex.join([sys.executable, *sys.argv]),
+        )
+        print(f"Rebuilt run status: {status['status']['status']}")
+        return
+    if not args.config:
+        parser.error("--config is required unless --run-dir is supplied")
     config = load_yaml(args.config)
     require_keys(config, ["canonical_labels", "evaluation"], "experiment config")
     if not args.predictions:
@@ -58,9 +75,13 @@ def main() -> None:
         return
     arrays = np.load(args.predictions, allow_pickle=True)
     if args.thresholds or "thresholds" in arrays:
-        thresholds = _load_thresholds(Path(args.thresholds)) if args.thresholds else arrays["thresholds"]
+        thresholds = (
+            _load_thresholds(Path(args.thresholds)) if args.thresholds else arrays["thresholds"]
+        )
         if "label_names" in arrays:
-            label_names = [str(name) for name in np.asarray(arrays["label_names"], dtype=object).tolist()]
+            label_names = [
+                str(name) for name in np.asarray(arrays["label_names"], dtype=object).tolist()
+            ]
         else:
             label_names = list(config["canonical_labels"])
         metrics = source_script_multilabel_report(
@@ -70,7 +91,9 @@ def main() -> None:
             thresholds,
         )
     else:
-        metrics = multilabel_metrics(arrays["y_true"], arrays["y_score"], config["canonical_labels"])
+        metrics = multilabel_metrics(
+            arrays["y_true"], arrays["y_score"], config["canonical_labels"]
+        )
     print(json.dumps(metrics, indent=2, allow_nan=True))
 
 
