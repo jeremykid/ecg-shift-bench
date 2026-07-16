@@ -992,24 +992,25 @@ def run_uda_cross_domain(
                 },
                 best_checkpoint,
             )
-        training_log_rows.append(
-            {
-                "phase": "epoch",
-                "epoch": int(epoch),
-                "source_classification_loss": _safe_float(train_summary["source_loss"]),
-                "adaptation_loss": _safe_float(train_summary["adaptation_loss"]),
-                "total_loss": _safe_float(train_summary["loss"]),
-                "source_train_macro_auroc": _safe_float(train_payload["macro_auroc"]),
-                "source_train_macro_auprc": _safe_float(train_payload["macro_auprc"]),
-                "source_validation_macro_auroc": _safe_float(validation_payload["macro_auroc"]),
-                "source_validation_macro_auprc": _safe_float(validation_payload["macro_auprc"]),
-                "selection_metric": selection_metric_name,
-                "selection_score": _safe_float(score),
-                "best_checkpoint_updated": bool(checkpoint_updated),
-                "best_epoch_so_far": int(best_epoch),
-                "checkpoint_path": str(best_checkpoint) if checkpoint_updated else "",
-            }
-        )
+        training_log_row = {
+            "phase": "epoch",
+            "epoch": int(epoch),
+            "source_classification_loss": _safe_float(train_summary["source_loss"]),
+            "adaptation_loss": _safe_float(train_summary["adaptation_loss"]),
+            "total_loss": _safe_float(train_summary["loss"]),
+            "source_train_macro_auroc": _safe_float(train_payload["macro_auroc"]),
+            "source_train_macro_auprc": _safe_float(train_payload["macro_auprc"]),
+            "source_validation_macro_auroc": _safe_float(validation_payload["macro_auroc"]),
+            "source_validation_macro_auprc": _safe_float(validation_payload["macro_auprc"]),
+            "selection_metric": selection_metric_name,
+            "selection_score": _safe_float(score),
+            "best_checkpoint_updated": bool(checkpoint_updated),
+            "best_epoch_so_far": int(best_epoch),
+            "checkpoint_path": str(best_checkpoint) if checkpoint_updated else "",
+        }
+        for key, value in dict(train_summary.get("method_metrics") or {}).items():
+            training_log_row[f"method_{key}"] = _safe_float(value)
+        training_log_rows.append(training_log_row)
 
     checkpoint = torch.load(best_checkpoint, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])

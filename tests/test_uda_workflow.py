@@ -348,3 +348,187 @@ def test_uda_run_uses_unlabeled_target_batches_and_writes_full_report(
     assert status_json["protocol"]["target_inputs_available_during_training"] is True
     assert status_json["method_metadata"]["name"] == "source_only"
     assert (output_dir / "target_validation_metrics.json").exists()
+
+
+def test_coral_uda_run_records_method_params_and_adaptation_loss(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+    source_metadata, source_signals, source_labels = _fake_records("s", 6, length=8)
+    target_metadata, target_signals, target_labels = _fake_records("t", 6, length=8)
+    target_signals["t1"] = np.full((12, 8), 2.0, dtype=np.float32)
+    target_signals["t2"] = np.full((12, 8), 4.0, dtype=np.float32)
+    datasets = {
+        "SOURCE": FakeDataset(
+            name="SOURCE",
+            domain="source_domain",
+            config={
+                "record_id_column": "record_id",
+                "patient_id_column": "patient_id",
+                "sampling_rate": 500,
+                "target_sampling_rate": 500,
+                "target_length": 8,
+                "source_unit": "mV",
+                "target_unit": "mV",
+                "domain": "source_domain",
+            },
+            metadata=source_metadata,
+            signals=source_signals,
+            labels=source_labels,
+            calls=calls,
+        ),
+        "TARGET": FakeDataset(
+            name="TARGET",
+            domain="target_domain",
+            config={
+                "record_id_column": "record_id",
+                "patient_id_column": "patient_id",
+                "sampling_rate": 500,
+                "target_sampling_rate": 500,
+                "target_length": 8,
+                "source_unit": "mV",
+                "target_unit": "mV",
+                "domain": "target_domain",
+            },
+            metadata=target_metadata,
+            signals=target_signals,
+            labels=target_labels,
+            calls=calls,
+        ),
+    }
+    source_dataset_config = tmp_path / "source.yaml"
+    target_dataset_config = tmp_path / "target.yaml"
+    experiment_config_path = tmp_path / "experiment.yaml"
+    _write_yaml(
+        source_dataset_config,
+        "name: SOURCE\n"
+        "root: /placeholder/source\n"
+        "record_id_column: record_id\n"
+        "patient_id_column: patient_id\n"
+        "sampling_rate: 500\n"
+        "target_sampling_rate: 500\n"
+        "target_length: 8\n"
+        "source_unit: mV\n"
+        "target_unit: mV\n"
+        "domain: source_domain\n",
+    )
+    _write_yaml(
+        target_dataset_config,
+        "name: TARGET\n"
+        "root: /placeholder/target\n"
+        "record_id_column: record_id\n"
+        "patient_id_column: patient_id\n"
+        "sampling_rate: 500\n"
+        "target_sampling_rate: 500\n"
+        "target_length: 8\n"
+        "source_unit: mV\n"
+        "target_unit: mV\n"
+        "domain: target_domain\n",
+    )
+    _write_yaml(experiment_config_path, "experiment: uda_coral_source_to_target\nmethod: coral\n")
+
+    experiment_config = {
+        "experiment": "uda_coral_source_to_target",
+        "method": "coral",
+        "source_datasets": ["SOURCE"],
+        "target_datasets": ["TARGET"],
+        "dataset_configs": {
+            "source": str(source_dataset_config),
+            "target": str(target_dataset_config),
+        },
+        "model": {"name": "resnet1d", "width": 4},
+        "data": {
+            "input_length": 8,
+            "preprocessing_version": "shared_alignment_v1",
+            "sampling_rate": 500,
+            "target_sampling_rate": 500,
+            "source_unit": "mV",
+            "target_unit": "mV",
+            "normalization": "none",
+        },
+        "training": {
+            "seed": 7,
+            "batch_size": 2,
+            "workers": 0,
+            "epochs": 1,
+            "optimizer": "adamw",
+            "learning_rate": 0.001,
+            "weight_decay": 0.0,
+            "amp": False,
+        },
+        "evaluation": {"selection_metric": "source_validation_macro_auroc"},
+        "method_params": {"lambda": 0.5},
+        "protocol": {
+            "target_inputs_available_during_training": True,
+            "target_labels_available_during_training": False,
+        },
+    }
+
+    monkeypatch.setattr(uda, "_git_state", lambda: ("deadbeef", False))
+    monkeypatch.setattr(uda, "_resolve_device", lambda requested: torch.device("cpu"))
+    monkeypatch.setattr(
+        uda,
+        "create_dataset",
+        lambda name, root, config: calls.append(f"create_dataset:{name}") or datasets[name],
+    )
+    monkeypatch.setattr(uda, "build_split_manifest", _fake_split_manifest)
+    monkeypatch.setattr(
+        uda, "create_model", lambda model_config, *, num_labels: TinyUdaModel(num_labels)
+    )
+
+    source_train = np.array(
+        [
+            [1, 0, 1, 0, 1, 0],
+            [0, 1, 0, 1, 0, 1],
+        ],
+        dtype=int,
+    )
+    good_scores = source_train * 0.9 + (1 - source_train) * 0.1
+
+    def fake_collect_predictions(
+        model,
+        batches,
+        device,
+        amp_enabled,
+        *,
+        description,
+    ):
+        del model, batches, device, amp_enabled, description
+        return source_train, good_scores
+
+    monkeypatch.setattr(uda, "_collect_predictions", fake_collect_predictions)
+
+    output_dir = tmp_path / "outputs"
+    status = uda.run_uda_cross_domain(
+        experiment_config=experiment_config,
+        experiment_config_path=experiment_config_path,
+        source_dataset_spec=uda.DatasetSpec(
+            name="SOURCE",
+            root=tmp_path / "source_root",
+            config=dict(datasets["SOURCE"].config),
+            config_path=source_dataset_config,
+        ),
+        target_dataset_spec=uda.DatasetSpec(
+            name="TARGET",
+            root=tmp_path / "target_root",
+            config=dict(datasets["TARGET"].config),
+            config_path=target_dataset_config,
+        ),
+        output_dir=output_dir,
+        requested_device="cpu",
+        command="python scripts/train.py --config experiment.yaml",
+    )
+
+    assert status["status"] == "completed"
+    assert datasets["TARGET"].label_calls == 4
+
+    training_log = pd.read_csv(output_dir / "training_log.csv")
+    assert training_log.loc[0, "adaptation_loss"] > 0.0
+    assert training_log.loc[0, "method_coral_loss"] > 0.0
+    assert training_log.loc[0, "method_coral_lambda"] == pytest.approx(0.5)
+
+    status_json = json.loads((output_dir / "run_status.json").read_text(encoding="utf-8"))
+    assert status_json["method"] == "coral"
+    assert status_json["method_params"] == {"lambda": 0.5}
+    assert status_json["method_metadata"]["name"] == "coral"
+    assert status_json["feature_extraction"] == "model.forward_features"

@@ -53,6 +53,10 @@ def build_uda_method(
     key = str(method_name).strip().lower().replace("-", "_")
     if key == "source_only":
         return SourceOnlyUdaMethod(method_params=method_params)
+    if key == "coral":
+        from ecg_shift_bench.methods.coral import CoralUdaMethod
+
+        return CoralUdaMethod(method_params=method_params)
     raise NotImplementedError(
         f"UDA method {method_name!r} is not implemented yet; add it under ecg_shift_bench.methods"
     )

@@ -20,6 +20,25 @@ documented hospital, country, or device subgroup where provenance supports that 
    For per-label F1 reporting, thresholds are derived from source-train scores and then fixed;
    target labels are never used for threshold tuning.
 
+## CORAL UDA baseline
+
+The CORAL baseline uses the issue 25 UDA workflow and adds a Deep CORAL-style
+feature alignment objective. Source labels provide the multi-label BCE
+classification loss, while unlabeled target inputs contribute only to the
+CORAL covariance alignment loss.
+
+CORAL aligns the pooled encoder representation returned by
+`model.forward_features`. For the default `resnet1d` configuration this is the
+feature vector immediately before the classifier head. The training objective is:
+
+`source classification loss + lambda * coral_loss`
+
+where `coral_loss` is the squared Frobenius distance between source and target
+feature covariance matrices divided by `4 * feature_dim * feature_dim`. The
+initial PTB-XL to Chapman configuration records `method_params.lambda: 0.1`.
+This value must not be tuned using target labels; standard UDA checkpoint
+selection remains source-validation-only.
+
 Target-supervised and few-shot experiments must use distinct protocol names and predeclare the
 number and selection procedure for labeled target examples.
 
