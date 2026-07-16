@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import torch
@@ -33,6 +33,17 @@ class UdaMethod(nn.Module):
         del source_features, target_features, target_logits, source_targets, epoch, step
         return torch.zeros((), device=source_logits.device), {}
 
+    def initialize(
+        self,
+        *,
+        feature_dim: int,
+        num_labels: int,
+        device: torch.device,
+        label_names: Sequence[str] | None = None,
+    ) -> None:
+        """Initialize optional trainable method state after the backbone is built."""
+        del feature_dim, num_labels, device, label_names
+
     def metadata(self) -> dict[str, Any]:
         """Return method metadata for run status and artifacts."""
         return {"name": self.method_name, "params": dict(self.method_params)}
@@ -57,6 +68,10 @@ def build_uda_method(
         from ecg_shift_bench.methods.coral import CoralUdaMethod
 
         return CoralUdaMethod(method_params=method_params)
+    if key in {"ecg_adapt", "ecg_adapt_multilabel"}:
+        from ecg_shift_bench.methods.ecg_adapt import ECGAdaptUdaMethod
+
+        return ECGAdaptUdaMethod(method_params=method_params)
     raise NotImplementedError(
         f"UDA method {method_name!r} is not implemented yet; add it under ecg_shift_bench.methods"
     )

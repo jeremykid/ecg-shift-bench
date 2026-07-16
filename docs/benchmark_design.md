@@ -39,6 +39,40 @@ initial PTB-XL to Chapman configuration records `method_params.lambda: 0.1`.
 This value must not be tuned using target labels; standard UDA checkpoint
 selection remains source-validation-only.
 
+## ECG-Adapt-inspired multi-label UDA baseline
+
+The registered `ecg_adapt_multilabel` method is a multi-label extension of the
+ECG-Adapt class-aware adversarial idea, not an exact reproduction. The original
+method assumes one-hot, single-label classes and a unified class-domain
+discriminator. ECGShiftBench retains independent binary diagnoses and reshapes
+the discriminator output to `(batch, num_labels, 2)`, where the final dimension
+is a genuine source-versus-target softmax for each diagnosis. The legacy method
+name `ecg_adapt` remains an alias for existing experiment configurations.
+
+Only true-positive source labels and confident target pseudo-positive labels
+drive the default conditional alignment. Source entries use domain class 0;
+target entries use domain class 1 and are weighted by detached classifier
+confidence. Cross-entropy is normalized within each label and then across active
+labels so common diagnoses and negative disease entries do not dominate. The
+gradient reversal layer applies `lambda` exactly once to feature gradients while
+the discriminator receives ordinary domain-classification gradients.
+
+An optional early absence-conditioned auxiliary can align source true-negatives
+with confident target pseudo-negatives for zero-based epochs below
+`negative_learning_epochs`. This confidence-masked multi-label extension is not
+the paper's random complementary-label procedure. It is experimental and
+disabled by default with `negative_learning_epochs: 0`; positive alignment
+remains active throughout training. The initial configuration records
+`lambda: 0.001`, `negative_label_threshold: 0.3`, and
+`pseudo_label_threshold: 0.7`.
+
+ECGShiftBench uses its shared six-label 12-lead task and ResNet1D feature
+extractor, does not add GAN target augmentation, and omits NWD. UDA checkpoint
+selection remains source-validation-only, and target labels are used only for
+final reporting. Discriminator checkpoints produced by the former independent
+head objective have incompatible output-row semantics and must not be resumed;
+their classifier/backbone weights remain usable independently.
+
 Target-supervised and few-shot experiments must use distinct protocol names and predeclare the
 number and selection procedure for labeled target examples.
 
