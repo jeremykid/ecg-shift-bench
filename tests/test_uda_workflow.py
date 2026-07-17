@@ -13,6 +13,7 @@ import torch
 from torch import nn
 
 from ecg_shift_bench.labels.canonical import CANONICAL_LABELS
+from ecg_shift_bench.methods.uda import build_uda_method as real_build_uda_method
 from ecg_shift_bench.training import uda
 
 
@@ -532,3 +533,263 @@ def test_coral_uda_run_records_method_params_and_adaptation_loss(
     assert status_json["method_params"] == {"lambda": 0.5}
     assert status_json["method_metadata"]["name"] == "coral"
     assert status_json["feature_extraction"] == "model.forward_features"
+
+
+def test_ecg_adapt_uda_run_trains_method_parameters_and_records_losses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+    source_metadata, source_signals, source_labels = _fake_records("s", 6, length=8)
+    target_metadata, target_signals, target_labels = _fake_records("t", 6, length=8)
+    datasets = {
+        "SOURCE": FakeDataset(
+            name="SOURCE",
+            domain="source_domain",
+            config={
+                "record_id_column": "record_id",
+                "patient_id_column": "patient_id",
+                "sampling_rate": 500,
+                "target_sampling_rate": 500,
+                "target_length": 8,
+                "source_unit": "mV",
+                "target_unit": "mV",
+                "domain": "source_domain",
+            },
+            metadata=source_metadata,
+            signals=source_signals,
+            labels=source_labels,
+            calls=calls,
+        ),
+        "TARGET": FakeDataset(
+            name="TARGET",
+            domain="target_domain",
+            config={
+                "record_id_column": "record_id",
+                "patient_id_column": "patient_id",
+                "sampling_rate": 500,
+                "target_sampling_rate": 500,
+                "target_length": 8,
+                "source_unit": "mV",
+                "target_unit": "mV",
+                "domain": "target_domain",
+            },
+            metadata=target_metadata,
+            signals=target_signals,
+            labels=target_labels,
+            calls=calls,
+        ),
+    }
+    source_dataset_config = tmp_path / "source.yaml"
+    target_dataset_config = tmp_path / "target.yaml"
+    experiment_config_path = tmp_path / "experiment.yaml"
+    _write_yaml(
+        source_dataset_config,
+        "name: SOURCE\n"
+        "root: /placeholder/source\n"
+        "record_id_column: record_id\n"
+        "patient_id_column: patient_id\n"
+        "sampling_rate: 500\n"
+        "target_sampling_rate: 500\n"
+        "target_length: 8\n"
+        "source_unit: mV\n"
+        "target_unit: mV\n"
+        "domain: source_domain\n",
+    )
+    _write_yaml(
+        target_dataset_config,
+        "name: TARGET\n"
+        "root: /placeholder/target\n"
+        "record_id_column: record_id\n"
+        "patient_id_column: patient_id\n"
+        "sampling_rate: 500\n"
+        "target_sampling_rate: 500\n"
+        "target_length: 8\n"
+        "source_unit: mV\n"
+        "target_unit: mV\n"
+        "domain: target_domain\n",
+    )
+    _write_yaml(
+        experiment_config_path,
+        "experiment: uda_ecg_adapt_source_to_target\nmethod: ecg_adapt\n",
+    )
+
+    experiment_config = {
+        "experiment": "uda_ecg_adapt_source_to_target",
+        "method": "ecg_adapt",
+        "source_datasets": ["SOURCE"],
+        "target_datasets": ["TARGET"],
+        "dataset_configs": {
+            "source": str(source_dataset_config),
+            "target": str(target_dataset_config),
+        },
+        "model": {"name": "resnet1d", "width": 4},
+        "data": {
+            "input_length": 8,
+            "preprocessing_version": "shared_alignment_v1",
+            "sampling_rate": 500,
+            "target_sampling_rate": 500,
+            "source_unit": "mV",
+            "target_unit": "mV",
+            "normalization": "none",
+        },
+        "training": {
+            "seed": 7,
+            "batch_size": 2,
+            "workers": 0,
+            "epochs": 1,
+            "optimizer": "adamw",
+            "learning_rate": 0.001,
+            "weight_decay": 0.0,
+            "amp": False,
+        },
+        "evaluation": {"selection_metric": "source_validation_macro_auroc"},
+        "method_params": {
+            "lambda": 0.001,
+            "hidden_dims": [3],
+            "dropout": 0.0,
+            "negative_learning_epochs": 2,
+            "pseudo_label_threshold": 0.7,
+            "negative_label_threshold": 0.3,
+        },
+        "protocol": {
+            "target_inputs_available_during_training": True,
+            "target_labels_available_during_training": False,
+        },
+    }
+
+    created_method = {}
+    recorded_method_epochs: list[int] = []
+    evaluation_method_modes: list[bool] = []
+    captured_optimizer_parameters: list[torch.nn.Parameter] = []
+
+    def build_method(method_name, *, method_params=None):
+        method = real_build_uda_method(method_name, method_params=method_params)
+        original_adaptation_loss = method.adaptation_loss
+
+        def recording_adaptation_loss(**kwargs):
+            recorded_method_epochs.append(int(kwargs["epoch"]))
+            return original_adaptation_loss(**kwargs)
+
+        method.adaptation_loss = recording_adaptation_loss
+        created_method["method"] = method
+        return method
+
+    def create_capturing_optimizer(parameters, name, learning_rate, weight_decay):
+        del name
+        captured_optimizer_parameters.extend(list(parameters))
+        return torch.optim.Adam(
+            captured_optimizer_parameters,
+            lr=float(learning_rate),
+            weight_decay=float(weight_decay),
+        )
+
+    monkeypatch.setattr(uda, "_git_state", lambda: ("deadbeef", False))
+    monkeypatch.setattr(uda, "_resolve_device", lambda requested: torch.device("cpu"))
+    monkeypatch.setattr(uda, "build_uda_method", build_method)
+    monkeypatch.setattr(uda, "create_optimizer", create_capturing_optimizer)
+    monkeypatch.setattr(
+        uda,
+        "create_dataset",
+        lambda name, root, config: calls.append(f"create_dataset:{name}") or datasets[name],
+    )
+    monkeypatch.setattr(uda, "build_split_manifest", _fake_split_manifest)
+    monkeypatch.setattr(
+        uda,
+        "create_model",
+        lambda model_config, *, num_labels: TinyUdaModel(num_labels),
+    )
+
+    source_train = np.array(
+        [
+            [1, 0, 1, 0, 1, 0],
+            [0, 1, 0, 1, 0, 1],
+        ],
+        dtype=int,
+    )
+    good_scores = source_train * 0.9 + (1 - source_train) * 0.1
+
+    def fake_collect_predictions(
+        model,
+        batches,
+        device,
+        amp_enabled,
+        *,
+        description,
+    ):
+        del model, batches, device, amp_enabled, description
+        evaluation_method_modes.append(created_method["method"].training)
+        return source_train, good_scores
+
+    monkeypatch.setattr(uda, "_collect_predictions", fake_collect_predictions)
+
+    output_dir = tmp_path / "outputs"
+    status = uda.run_uda_cross_domain(
+        experiment_config=experiment_config,
+        experiment_config_path=experiment_config_path,
+        source_dataset_spec=uda.DatasetSpec(
+            name="SOURCE",
+            root=tmp_path / "source_root",
+            config=dict(datasets["SOURCE"].config),
+            config_path=source_dataset_config,
+        ),
+        target_dataset_spec=uda.DatasetSpec(
+            name="TARGET",
+            root=tmp_path / "target_root",
+            config=dict(datasets["TARGET"].config),
+            config_path=target_dataset_config,
+        ),
+        output_dir=output_dir,
+        requested_device="cpu",
+        command="python scripts/train.py --config experiment.yaml",
+    )
+
+    assert status["status"] == "completed"
+    assert datasets["TARGET"].label_calls == 4
+    method = created_method["method"]
+    method_parameter_ids = {id(parameter) for parameter in method.parameters()}
+    optimizer_parameter_ids = {id(parameter) for parameter in captured_optimizer_parameters}
+    assert method_parameter_ids
+    assert method_parameter_ids.issubset(optimizer_parameter_ids)
+
+    training_log = pd.read_csv(output_dir / "training_log.csv")
+    assert recorded_method_epochs == [0, 0]
+    assert evaluation_method_modes and not any(evaluation_method_modes)
+    assert method.training is False
+    assert training_log.loc[0, "method_ecg_adapt_stage"] == "positive_plus_negative"
+    assert training_log.loc[0, "method_discriminator_loss"] > 0.0
+    assert training_log.loc[0, "method_source_positive_domain_loss"] > 0.0
+    assert training_log.loc[0, "method_source_negative_domain_loss"] > 0.0
+    assert training_log.loc[0, "method_target_negative_domain_loss"] >= 0.0
+    assert "method_source_positive_AF_count" in training_log.columns
+    assert "method_target_pseudo_positive_AF_rate" in training_log.columns
+    assert training_log.loc[0, "method_lambda"] == pytest.approx(0.001)
+
+    checkpoint = torch.load(
+        output_dir / "best_checkpoint.pt",
+        map_location="cpu",
+        weights_only=True,
+    )
+    assert checkpoint["method"] == "ecg_adapt_multilabel"
+    assert checkpoint["method_params"]["lambda"] == pytest.approx(0.001)
+    assert "method_state_dict" in checkpoint
+    assert any(key.startswith("discriminator.") for key in checkpoint["method_state_dict"])
+
+
+def test_method_metric_aggregation_sums_counts_and_averages_other_scalars() -> None:
+    accumulator: dict[str, float] = {}
+    counts: dict[str, int] = {}
+
+    uda._aggregate_scalar_metrics(
+        accumulator,
+        counts,
+        {"selected_source_positive_count": 2, "source_positive_selection_rate": 0.25},
+    )
+    uda._aggregate_scalar_metrics(
+        accumulator,
+        counts,
+        {"selected_source_positive_count": 3, "source_positive_selection_rate": 0.75},
+    )
+    aggregated = uda._finalize_scalar_metrics(accumulator, counts)
+
+    assert aggregated["selected_source_positive_count"] == pytest.approx(5.0)
+    assert aggregated["source_positive_selection_rate"] == pytest.approx(0.5)

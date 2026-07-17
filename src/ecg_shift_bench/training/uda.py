@@ -8,6 +8,7 @@ import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from itertools import chain
 from pathlib import Path
 from typing import Any
 
@@ -449,6 +450,16 @@ def _model_forward_logits(model: nn.Module, features: Tensor) -> Tensor:
     return logits
 
 
+def _model_feature_dim(model: nn.Module) -> int:
+    head = model.head
+    if isinstance(head, nn.Linear):
+        return int(head.in_features)
+    for module in head.modules():
+        if isinstance(module, nn.Linear):
+            return int(module.in_features)
+    raise TypeError(f"{type(model).__name__}.head must contain a linear classifier layer")
+
+
 def _uda_run_metadata(
     *,
     experiment_config: dict[str, Any],
@@ -491,9 +502,12 @@ def _aggregate_scalar_metrics(
     accumulator: dict[str, float],
     counts: dict[str, int],
     metrics: dict[str, Any],
+    latest_values: dict[str, Any] | None = None,
 ) -> None:
     for key, value in metrics.items():
         if isinstance(value, (bool, str)):
+            if latest_values is not None:
+                latest_values[key] = value
             continue
         if isinstance(value, (int, float, np.integer, np.floating)):
             accumulator[key] = accumulator.get(key, 0.0) + float(value)
@@ -504,7 +518,11 @@ def _finalize_scalar_metrics(
     accumulator: dict[str, float],
     counts: dict[str, int],
 ) -> dict[str, float]:
-    return {key: (total / counts[key]) for key, total in accumulator.items() if counts.get(key, 0)}
+    return {
+        key: (total if key.endswith("_count") else total / counts[key])
+        for key, total in accumulator.items()
+        if counts.get(key, 0)
+    }
 
 
 def _cycled_batches(loader: DataLoader[Any]) -> Iterator[Any]:
@@ -560,8 +578,13 @@ def preflight_forward_backward(
 ) -> dict[str, Any]:
     """Check one paired source/target batch without changing the model state."""
     original_state = {name: value.detach().clone() for name, value in model.state_dict().items()}
+    original_method_state = {
+        name: value.detach().clone() for name, value in method.state_dict().items()
+    }
     model.train()
+    method.train()
     model.zero_grad(set_to_none=True)
+    method.zero_grad(set_to_none=True)
     total_loss, source_loss, adaptation_loss, method_metrics = _uda_step(
         model=model,
         method=method,
@@ -570,7 +593,7 @@ def preflight_forward_backward(
         criterion=criterion,
         device=device,
         amp_enabled=amp_enabled,
-        epoch=1,
+        epoch=0,
         step=1,
     )
     if not torch.isfinite(total_loss):
@@ -578,8 +601,13 @@ def preflight_forward_backward(
     total_loss.backward()
     if not any(parameter.grad is not None for parameter in model.parameters()):
         raise RuntimeError("Preflight backward pass produced no gradients")
+    method_parameters = list(method.parameters())
+    if method_parameters and not any(parameter.grad is not None for parameter in method_parameters):
+        raise RuntimeError("Preflight backward pass produced no UDA method gradients")
     model.zero_grad(set_to_none=True)
+    method.zero_grad(set_to_none=True)
     model.load_state_dict(original_state)
+    method.load_state_dict(original_method_state)
     return {
         "status": "passed",
         "source_loss": float(source_loss.detach()),
@@ -601,9 +629,10 @@ def train_uda_epoch(
     *,
     description: str,
     epoch: int,
-) -> dict[str, float | int | dict[str, float]]:
+) -> dict[str, Any]:
     """Train one epoch with paired source and target batches."""
     model.train()
+    method.train()
     scaler = torch.cuda.amp.GradScaler(enabled=amp_enabled)
     total_loss = 0.0
     total_source_loss = 0.0
@@ -614,6 +643,7 @@ def train_uda_epoch(
     steps = 0
     extra_totals: dict[str, float] = {}
     extra_counts: dict[str, int] = {}
+    extra_latest: dict[str, Any] = {}
     progress = tqdm(source_batches, desc=description, leave=False)
     target_iter = _cycled_batches(target_batches)
     for step, source_batch in enumerate(progress, start=1):
@@ -648,11 +678,11 @@ def train_uda_epoch(
         minimum = min(minimum, loss_value)
         maximum = max(maximum, loss_value)
         steps += 1
-        _aggregate_scalar_metrics(extra_totals, extra_counts, method_metrics)
+        _aggregate_scalar_metrics(extra_totals, extra_counts, method_metrics, extra_latest)
         progress.set_postfix(loss=f"{loss_value:.5f}")
     if total_samples == 0:
         raise ValueError("Training loader produced no batches")
-    summary: dict[str, float | int | dict[str, float]] = {
+    summary: dict[str, Any] = {
         "loss": total_loss / total_samples,
         "source_loss": total_source_loss / total_samples,
         "adaptation_loss": total_adaptation_loss / total_samples,
@@ -661,7 +691,8 @@ def train_uda_epoch(
         "steps": steps,
         "samples": total_samples,
     }
-    extra_metrics = _finalize_scalar_metrics(extra_totals, extra_counts)
+    extra_metrics: dict[str, Any] = _finalize_scalar_metrics(extra_totals, extra_counts)
+    extra_metrics.update(extra_latest)
     if extra_metrics:
         summary["method_metrics"] = extra_metrics
     return summary
@@ -881,6 +912,12 @@ def run_uda_cross_domain(
     seed_everything(seed)
     model = _build_model(experiment_config["model"], len(CANONICAL_LABELS), device)
     _model_supports_features(model)
+    method.initialize(
+        feature_dim=_model_feature_dim(model),
+        num_labels=len(CANONICAL_LABELS),
+        device=device,
+        label_names=CANONICAL_LABELS,
+    )
     criterion = nn.BCEWithLogitsLoss()
     preflight = preflight_forward_backward(
         model,
@@ -901,7 +938,7 @@ def run_uda_cross_domain(
         return status
 
     optimizer = create_optimizer(
-        model.parameters(),
+        chain(model.parameters(), method.parameters()),
         str(experiment_config["training"]["optimizer"]),
         float(experiment_config["training"]["learning_rate"]),
         float(experiment_config["training"].get("weight_decay", 0.0)),
@@ -923,8 +960,9 @@ def run_uda_cross_domain(
             device,
             amp_enabled,
             description=f"source-target train {epoch}/{epochs}",
-            epoch=epoch,
+            epoch=epoch - 1,
         )
+        method.eval()
         train_truth, train_scores = _collect_predictions(
             model,
             source_train_eval_loader,
@@ -986,6 +1024,7 @@ def run_uda_cross_domain(
                     "epoch": epoch,
                     "validation_macro_auroc": score,
                     "model_state_dict": model.state_dict(),
+                    "method_state_dict": method.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "method": method.method_name,
                     "method_params": dict(method.method_params),
@@ -1009,11 +1048,20 @@ def run_uda_cross_domain(
             "checkpoint_path": str(best_checkpoint) if checkpoint_updated else "",
         }
         for key, value in dict(train_summary.get("method_metrics") or {}).items():
-            training_log_row[f"method_{key}"] = _safe_float(value)
+            if isinstance(value, str):
+                training_log_row[f"method_{key}"] = value
+            elif isinstance(value, bool):
+                training_log_row[f"method_{key}"] = bool(value)
+            else:
+                training_log_row[f"method_{key}"] = _safe_float(value)
         training_log_rows.append(training_log_row)
 
     checkpoint = torch.load(best_checkpoint, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
+    method_state_dict = checkpoint.get("method_state_dict")
+    if method_state_dict:
+        method.load_state_dict(method_state_dict)
+    method.eval()
     train_truth, train_scores = _collect_predictions(
         model,
         source_train_eval_loader,
