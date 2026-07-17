@@ -246,3 +246,14 @@ outputs/source_only_cross_domain_results/*
 !outputs/source_only_cross_domain_results/README.md
 !outputs/source_only_cross_domain_results/results_summary.csv
 !outputs/source_only_cross_domain_results/per_class_summary.csv
+!outputs/uda_ptbxl_to_chapman_results/
+outputs/uda_ptbxl_to_chapman_results/*
+!outputs/uda_ptbxl_to_chapman_results/README.md
+!outputs/uda_ptbxl_to_chapman_results/source_only_results_summary.csv
+!outputs/uda_ptbxl_to_chapman_results/source_only_per_class_summary.csv
+!outputs/uda_ptbxl_to_chapman_results/coral_results_summary.csv
+!outputs/uda_ptbxl_to_chapman_results/coral_per_class_summary.csv
+!outputs/uda_ptbxl_to_chapman_results/source_only_vs_coral.csv
+
+# Keep source-only cross-domain full runs out of git.
+outputs/source-only-cross-domain/fullrun*

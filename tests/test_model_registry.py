@@ -41,6 +41,29 @@ def test_xresnet1d_supports_single_item_train_batches() -> None:
     assert logits.shape == (1, 4)
 
 
+@pytest.mark.parametrize(
+    "model_config",
+    [
+        {"name": "xresnet1d", "channels": 32, "dropout": 0.0},
+        {"name": "resnet1d_wang", "channels": 32, "dropout": 0.0},
+        {"name": "resnet1d", "width": 16},
+        {"name": "inception_time", "width": 16},
+    ],
+)
+def test_supported_backbones_expose_forward_features(
+    model_config: dict[str, object],
+) -> None:
+    model = create_model(model_config, num_labels=4)
+    inputs = torch.randn(2, 12, 256)
+
+    features = model.forward_features(inputs)
+    logits = model(inputs)
+
+    assert features.shape[0] == 2
+    assert features.ndim == 2
+    assert logits.shape == (2, 4)
+
+
 def test_create_model_rejects_unknown_backbone() -> None:
     with pytest.raises(KeyError, match="supported models"):
         create_model({"name": "unknown_backbone"}, num_labels=4)

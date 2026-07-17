@@ -27,6 +27,7 @@ from ecg_shift_bench.training.source_only_cross_domain import (
     run_source_only_cross_domain,
 )
 from ecg_shift_bench.training.trainer import train_one_epoch
+from ecg_shift_bench.training.uda import run_uda_cross_domain
 from ecg_shift_bench.utils.config import load_yaml, require_keys
 from ecg_shift_bench.utils.paths import resolve_project_path
 from ecg_shift_bench.utils.seed import seed_everything
@@ -155,6 +156,8 @@ def main() -> None:
         return
     source_datasets = list(config.get("source_datasets") or [])
     target_datasets = list(config.get("target_datasets") or [])
+    protocol = dict(config.get("protocol") or {})
+    uda_enabled = bool(protocol.get("target_inputs_available_during_training"))
     pair_shaped = (
         len(source_datasets) == 1
         and len(target_datasets) == 1
@@ -181,7 +184,8 @@ def main() -> None:
             root_override=args.target_root,
         )
         command = _display_command(sys.argv)
-        status = run_source_only_cross_domain(
+        runner = run_uda_cross_domain if uda_enabled else run_source_only_cross_domain
+        status = runner(
             experiment_config=config,
             experiment_config_path=config_path,
             source_dataset_spec=source_dataset_spec,
