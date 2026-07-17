@@ -96,3 +96,45 @@ def test_cli_uses_source_report_when_thresholds_are_available(
     assert "per_label_reports" in output
     assert "thresholds" in output
     assert output["per_label_reports"]["AF"]["prec"] >= 0.0
+
+
+def test_cli_rebuilds_uda_runs_with_uda_helper(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    script = _load_script_module()
+    run_dir = tmp_path / "uda_run"
+    run_dir.mkdir()
+    (run_dir / "run_status.json").write_text(
+        json.dumps(
+            {
+                "status": "completed",
+                "protocol": {"target_inputs_available_during_training": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        script,
+        "rebuild_uda_cross_domain_results",
+        lambda **kwargs: captured.update(kwargs) or {"status": {"status": "completed"}},
+    )
+    monkeypatch.setattr(
+        script,
+        "rebuild_source_only_cross_domain_results",
+        lambda **kwargs: pytest.fail("legacy rebuild helper should not be used for UDA runs"),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "scripts/evaluate.py",
+            "--run-dir",
+            str(run_dir),
+        ],
+    )
+
+    script.main()
+    capsys.readouterr()
+
+    assert captured["run_dir"] == run_dir.resolve()

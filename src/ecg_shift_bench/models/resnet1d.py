@@ -47,6 +47,10 @@ class ResNet1D(nn.Module):
         )
         self.head = MultiLabelHead(width * 4, num_labels)
 
+    def forward_features(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Return the pooled encoder representation used by the classifier head."""
+        return self.encoder(inputs)
+
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Return one logit per canonical label."""
-        return self.head(self.encoder(inputs))
+        return self.head(self.forward_features(inputs))

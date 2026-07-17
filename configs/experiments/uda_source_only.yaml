@@ -1,4 +1,4 @@
-experiment: source_only_ptbxl_to_chapman
+experiment: uda_source_only_ptbxl_to_chapman
 method: source_only
 source_datasets: [PTBXL]
 target_datasets: [CHAPMAN]
@@ -13,7 +13,7 @@ model:
 data:
   input_length: 5000
   normalization: none
-preprocessing_version: shared_alignment_v1
+  preprocessing_version: shared_alignment_v1
 training:
   epochs: 30
   batch_size: 64
@@ -25,8 +25,9 @@ training:
   scheduler: none
   seed: 42
   amp: false
+method_params: {}
 evaluation:
-  selection_metric: source_validation_macro_auprc
+  selection_metric: source_validation_macro_auroc
   metrics:
     - macro_accuracy
     - macro_auroc
@@ -45,5 +46,5 @@ evaluation:
 protocol:
   source_labels_available_during_training: true
   target_labels_available_during_training: false
-  target_unlabeled_data_available_during_training: false
+  target_inputs_available_during_training: true
   model_updates_during_testing: false

@@ -5,18 +5,20 @@ Expected: ``ptbxl_database.csv`` plus WFDB records in ``records500/`` (or
 returns physical signals in mV with canonical 12-lead ordering.
 """
 
+import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Any
-from types import SimpleNamespace
 
 import numpy as np
 
 from ecg_shift_bench.datasets._tabular import TabularSkeletonDataset
 
-try:  # pragma: no cover - optional dependency is exercised in integration tests.
-    import wfdb
-except ImportError:  # pragma: no cover - handled at load time.
-    wfdb = SimpleNamespace(rdsamp=None)
+try:  # pragma: no cover - optional dependency is exercised through monkeypatch tests.
+    import wfdb as wfdb
+except ImportError:  # pragma: no cover - keep a monkeypatchable module attribute.
+    wfdb = ModuleType("wfdb")
+    sys.modules.setdefault(f"{__name__}.wfdb", wfdb)
 
 CANONICAL_LEAD_ORDER = [
     "I",

@@ -83,11 +83,16 @@ class ResNet1DWang(nn.Module):
         )
         self.apply(_legacy_weight_init)
 
+    def forward_features(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Return the pooled feature tensor consumed by the head."""
+        features = self.stages(self.stem(inputs))
+        return torch.flatten(
+            torch.cat([self.max_pool(features), self.avg_pool(features)], dim=1), 1
+        )
+
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Return one logit per canonical label."""
-        features = self.stages(self.stem(inputs))
-        pooled = torch.cat([self.max_pool(features), self.avg_pool(features)], dim=1)
-        return self.head(torch.flatten(pooled, 1))
+        return self.head(self.forward_features(inputs))
 
 
 def _legacy_weight_init(module: nn.Module) -> None:

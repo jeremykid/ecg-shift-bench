@@ -10,9 +10,9 @@ from sklearn.metrics import (
     auc,
     average_precision_score,
     brier_score_loss,
+    precision_recall_curve,
     roc_auc_score,
     roc_curve,
-    precision_recall_curve,
 )
 
 from ecg_shift_bench.labels.canonical import CANONICAL_LABELS
@@ -30,7 +30,9 @@ def _validated_arrays(y_true: ArrayLike, y_score: ArrayLike) -> tuple[np.ndarray
     return truth.astype(int), scores
 
 
-def _validated_binary_arrays(y_true: ArrayLike, y_score: ArrayLike) -> tuple[np.ndarray, np.ndarray]:
+def _validated_binary_arrays(
+    y_true: ArrayLike, y_score: ArrayLike
+) -> tuple[np.ndarray, np.ndarray]:
     truth = np.asarray(y_true)
     scores = np.asarray(y_score, dtype=float)
     if truth.ndim != 1 or scores.ndim != 1 or truth.shape != scores.shape:
@@ -97,6 +99,38 @@ def _safe_brier_score(truth: np.ndarray, scores: np.ndarray) -> float:
     return float(brier_score_loss(truth, scores, pos_label=int(np.max(truth))))
 
 
+def _binary_metrics_from_predictions(truth: np.ndarray, pred: np.ndarray) -> dict[str, float]:
+    truth = truth.astype(int, copy=False)
+    pred = pred.astype(int, copy=False)
+    tp = float(np.logical_and(truth == 1, pred == 1).sum())
+    tn = float(np.logical_and(truth == 0, pred == 0).sum())
+    fp = float(np.logical_and(truth == 0, pred == 1).sum())
+    fn = float(np.logical_and(truth == 1, pred == 0).sum())
+    support = float((truth == 1).sum())
+    negative_support = float((truth == 0).sum())
+
+    accuracy = _safe_divide(tp + tn, tp + tn + fp + fn)
+    precision = _safe_divide(tp, tp + fp)
+    recall = _safe_divide(tp, tp + fn)
+    specificity = _safe_divide(tn, tn + fp)
+    f1 = _safe_divide(2.0 * precision * recall, precision + recall)
+
+    return {
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "sensitivity": recall,
+        "specificity": specificity,
+        "f1_score": f1,
+        "support": support,
+        "negative_support": negative_support,
+        "tp": tp,
+        "tn": tn,
+        "fp": fp,
+        "fn": fn,
+    }
+
+
 def _threshold_array(
     thresholds: dict[str, float] | list[float] | tuple[float, ...] | np.ndarray | None,
     labels: list[str],
@@ -139,38 +173,6 @@ def optimal_multilabel_thresholds(
             continue
         thresholds[label] = float(thr[int(best_candidates[-1])])
     return thresholds
-
-
-def _binary_metrics_from_predictions(truth: np.ndarray, pred: np.ndarray) -> dict[str, float]:
-    truth = truth.astype(int, copy=False)
-    pred = pred.astype(int, copy=False)
-    tp = float(np.logical_and(truth == 1, pred == 1).sum())
-    tn = float(np.logical_and(truth == 0, pred == 0).sum())
-    fp = float(np.logical_and(truth == 0, pred == 1).sum())
-    fn = float(np.logical_and(truth == 1, pred == 0).sum())
-    support = float((truth == 1).sum())
-    negative_support = float((truth == 0).sum())
-
-    accuracy = _safe_divide(tp + tn, tp + tn + fp + fn)
-    precision = _safe_divide(tp, tp + fp)
-    recall = _safe_divide(tp, tp + fn)
-    specificity = _safe_divide(tn, tn + fp)
-    f1 = _safe_divide(2.0 * precision * recall, precision + recall)
-
-    return {
-        "accuracy": accuracy,
-        "precision": precision,
-        "recall": recall,
-        "sensitivity": recall,
-        "specificity": specificity,
-        "f1_score": f1,
-        "support": support,
-        "negative_support": negative_support,
-        "tp": tp,
-        "tn": tn,
-        "fp": fp,
-        "fn": fn,
-    }
 
 
 def binary_class_report(
@@ -217,7 +219,9 @@ def source_script_multilabel_report(
     per_label_reports: dict[str, dict[str, float | int]] = {}
     per_label_support: dict[str, int] = {}
     for index, label in enumerate(labels):
-        per_label_reports[label] = binary_class_report(truth[:, index], scores[:, index], threshold_array[index])
+        per_label_reports[label] = binary_class_report(
+            truth[:, index], scores[:, index], threshold_array[index]
+        )
         per_label_support[label] = int(truth[:, index].sum())
 
     report_keys = (
@@ -238,7 +242,9 @@ def source_script_multilabel_report(
     }
     summary.update(
         {
-            "thresholds": {label: float(threshold_array[index]) for index, label in enumerate(labels)},
+            "thresholds": {
+                label: float(threshold_array[index]) for index, label in enumerate(labels)
+            },
             "per_label_reports": per_label_reports,
             "per_label_support": per_label_support,
         }
